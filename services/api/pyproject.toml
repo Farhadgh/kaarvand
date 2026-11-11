@@ -21,6 +21,8 @@ dependencies = [
     # Excel export (usage report). Imported lazily inside the endpoint, so keep
     # it here: a fresh install without it breaks /v1/usage/export.xlsx.
     "openpyxl>=3.1",
+    # Tool input validation (app/tools/schema.py) - imported at module load.
+    "jsonschema>=4.21",
 ]
 
 [project.optional-dependencies]
