@@ -50,7 +50,6 @@ connector = [
 line-length = 100
 target-version = "py312"
 extend-exclude = ["alembic/versions"]
-
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
 # B008: FastAPI Depends() in defaults is the framework idiom
@@ -66,3 +65,13 @@ ignore = ["B008", "ASYNC109"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
+
+# --- packaging ---------------------------------------------------------------
+# Needed for `pip install -e .` on a server: without an explicit package list
+# setuptools refuses the flat layout (app/, alembic/, tests/ side by side).
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
