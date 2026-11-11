@@ -48,7 +48,7 @@ _MIG_URL = _ENV.get("APP_MIGRATION_DATABASE_URL", _APP_URL)
 APP_TEST_URL = swap_db(_APP_URL, "openbot_test")
 MIG_TEST_URL = swap_db(_MIG_URL, "openbot_test")
 
-os.environ["APP_ENV"] = "test"
+os.environ["APP_APP_ENV"] = "test"
 os.environ["APP_DATABASE_URL"] = APP_TEST_URL
 os.environ["APP_MIGRATION_DATABASE_URL"] = MIG_TEST_URL
 os.environ.setdefault("APP_JWT_SECRET", _ENV.get("APP_JWT_SECRET", "test-secret"))

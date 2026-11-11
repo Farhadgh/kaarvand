@@ -83,6 +83,7 @@ powershell -ExecutionPolicy Bypass -File scripts\dev.ps1 -Reload
 | `APP_MIGRATION_DATABASE_URL` | — | نقش postgres برای مایگریشن/افزونه |
 | `APP_JWT_SECRET` | — | کلید امضای توکن |
 | `APP_MASTER_KEY` | — | base64 از ۳۲ بایت برای AES‑GCM کلیدها |
+| `APP_APP_ENV` | `dev` | `dev` یا `prod`. **توجه:** نام متغیر `APP_APP_ENV` است (پیشوند `APP_` + فیلد `app_env`)؛ `APP_ENV` بی‌اثر است |
 | `APP_ACCESS_TOKEN_TTL_MIN` | ۱۵ | عمر access |
 | `APP_REFRESH_TOKEN_TTL_DAYS` | ۷ | عمر refresh |
 | `APP_DEFAULT_LOCALE/CALENDAR/CURRENCY/DIGITS` | `fa`/`jalali`/`IRR`/`fa` | پیش‌فرض فارسی |
