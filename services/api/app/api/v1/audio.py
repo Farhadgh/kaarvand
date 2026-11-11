@@ -15,7 +15,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audio import service as audio
-from app.audio.presets import AUDIO_PRESETS
 from app.core.config import Settings, get_settings
 from app.core.deps import get_current_user, get_db, require_roles
 from app.db.models import Model, Provider, User
@@ -27,6 +26,7 @@ from app.schemas.audio import (
     SpeechMeta,
     TranscriptionOut,
 )
+from app.seeding.audio_presets import AUDIO_PRESETS
 
 router = APIRouter(tags=["audio"])
 operator = require_roles("owner", "admin", "operator")
