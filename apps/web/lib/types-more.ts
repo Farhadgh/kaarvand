@@ -1,3 +1,58 @@
+// --- audio (STT / TTS) ------------------------------------------------------
+
+export type AudioKind = "stt" | "tts";
+
+export type AudioPreset = {
+  slug: string;
+  external_id: string;
+  label_fa: string;
+  kind: AudioKind;
+  audio_input_price: string | null;
+  audio_output_price: string | null;
+  vendor_hint: string | null;
+};
+
+export type AudioModel = {
+  id: string;
+  provider_id: string;
+  provider_name: string | null;
+  external_id: string;
+  display_name_fa: string | null;
+  kind: AudioKind;
+  voices: string[];
+  audio_input_price: string | null;
+  audio_output_price: string | null;
+  is_enabled: boolean;
+};
+
+export type AudioMeta = {
+  max_upload_mb: number;
+  max_tts_chars: number;
+  voices: string[];
+  formats: string[];
+  kinds: Record<string, string>;
+};
+
+export type TranscriptionResult = {
+  model_id: string;
+  text: string;
+  language: string | null;
+  seconds: number;
+  cost_usd: string;
+  cost_irr: number;
+  fx_rate: string;
+  billable: boolean;
+};
+
+export type SpeechEstimate = {
+  model_id: string;
+  chars: number;
+  cost_usd: string;
+  cost_irr: number;
+  fx_rate: string;
+  billable: boolean;
+};
+
 /** Runtime types: tools, devices, runs, usage, settings. */
 
 export type ToolKind = "builtin" | "http" | "mcp" | "connector";

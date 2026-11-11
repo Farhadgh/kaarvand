@@ -2,7 +2,38 @@
 
 هر قدم با «شاهد» ثبت شده است؛ یعنی چیزی که واقعاً اجرا شده، نه ادعا.
 
-## قدم ۱۳ — استقرار روی سرور (https://kaarvand.amigok.cloud) ✔
+## قدم ۱۴ — مدل‌های صوتی (STT + TTS) ✔
+
+**انجام شد:** تبدیل گفتار به متن و متن به گفتار، با همان زیرساخت پروایدر/قیمت/دفتر مصرف.
+
+| فایل | تغییر |
+|---|---|
+| `db/models/llm_models.py` | `audio_input_price` (دلار/دقیقه، STT) و `audio_output_price` (دلار/۱۰۰۰ نویسه، TTS) روی `models` و `price_history` |
+| `db/models/usage.py` | `audio_seconds` و `audio_chars` روی `usage_ledger` |
+| `alembic/versions/0013_audio.py` | مایگریشن `0012 → 0013` |
+| `billing/cost.py` | `compute_audio_cost` و `price_audio_usage` (گرد کردن در مرز، مثل توکن) |
+| `providers/adapters/openai_chat.py` | `transcribe()` (multipart) و `speech()` (JSON) برای `openai`, `openai_compatible`, `groq`, `together`, `azure_openai` |
+| `audio/service.py` | تفکیک STT/TTS، سقف حجم/طول، بودجه، ثبت در ledger |
+| `audio/presets.py` | ۶ مدل آماده با قیمت رسمی (whisper-1، gpt-4o-transcribe، tts-1، …) |
+| `api/v1/audio.py` | ۶ مسیر: `meta`, `presets`, `models`, `transcriptions`, `speech`, `speech/estimate` |
+| `api/v1/models.py` | `POST /models` و `DELETE /models/{id}` برای افزودن دستی مدل صوتی |
+| `apps/web` | مسیر **`/audio`** («صدا و گفتار») + پروکسی دودویی `/api/audio/transcriptions` |
+| `seeding/catalog.py` | مدل‌های صوتی دیگر `supports_tools`/`stream` نمی‌گیرند |
+| `scripts/fake_provider.py` | endpointهای صوتی برای تست محلی |
+
+**شاهد زنده (روی همین سرویس‌های در حال اجرا):**
+
+| بررسی | نتیجه |
+|---|---|
+| `POST /v1/audio/transcriptions` روی پروایدر آزمایشی | `200` · متن + `seconds=6.0` · `cost_usd=0.0006` · `cost_irr=600` |
+| `POST /v1/audio/speech` (۱۱۹۹ نویسه) | `200` · `audio/mpeg` · `x-cost-usd=0.017985` · `x-chars=1199` |
+| `GET /v1/audio/speech/estimate` | `200` · ۱۰ نویسه → `0.00015` دلار (بدون فراخوانی پروایدر) |
+| `GET /v1/usage/summary` | هزینهٔ صوتی در مجموع ماه دیده می‌شود (ledger مشترک) |
+| `pytest tests/test_audio.py` | **۱۵ تست سبز** |
+
+**مستندات:** [audio.md](audio.md).
+
+
 
 **انجام شد:** نصب کامل روی همان VPS که اپ دیگری (`Amigook`) را سرو می‌کند، بدون دست‌زدن به آن.
 

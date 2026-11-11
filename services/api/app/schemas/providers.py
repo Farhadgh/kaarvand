@@ -117,11 +117,29 @@ class ModelOut(ORMModel):
     output_price: Decimal | None
     cached_input_price: Decimal | None
     image_price: Decimal | None
+    audio_input_price: Decimal | None = None
+    audio_output_price: Decimal | None = None
     price_currency: str
     price_source: str | None
     price_synced_at: Any | None
     markup_percent: Decimal
     is_enabled: bool
+
+
+class ModelCreate(BaseModel):
+    """Manual catalog entry (mainly for audio models that a provider omits)."""
+
+    provider_id: uuid.UUID
+    external_id: str = Field(min_length=1, max_length=200)
+    display_name_fa: str | None = Field(default=None, max_length=200)
+    family: str | None = Field(default=None, max_length=80)
+    audio_kind: Literal["stt", "tts"] | None = None
+    audio_input_price: Decimal | None = Field(default=None, ge=0)
+    audio_output_price: Decimal | None = Field(default=None, ge=0)
+    input_price: Decimal | None = Field(default=None, ge=0)
+    output_price: Decimal | None = Field(default=None, ge=0)
+    voices: list[str] | None = None
+    is_enabled: bool = True
 
 
 class ModelUpdate(BaseModel):
@@ -142,6 +160,8 @@ class ManualPriceIn(BaseModel):
     output_price: Decimal = Field(ge=0)
     cached_input_price: Decimal | None = Field(default=None, ge=0)
     image_price: Decimal | None = Field(default=None, ge=0)
+    audio_input_price: Decimal | None = Field(default=None, ge=0)
+    audio_output_price: Decimal | None = Field(default=None, ge=0)
     currency: str = Field(default="USD", max_length=8)
     note: str | None = Field(default=None, max_length=500)
 
@@ -171,5 +191,7 @@ class PriceHistoryOut(ORMModel):
     output_price: Decimal | None
     cached_input_price: Decimal | None
     image_price: Decimal | None
+    audio_input_price: Decimal | None = None
+    audio_output_price: Decimal | None = None
     currency: str
     source: str | None

@@ -97,8 +97,12 @@ CAPABILITY_RULES: list[dict[str, Any]] = [
         "priority": 20,
     },
     {
-        "pattern": "whisper|transcribe|tts|audio",
-        "flags": {"supports_audio": True},
+        "pattern": "whisper|transcrib|tts|audio|speech",
+        "flags": {
+            "supports_audio": True,
+            "supports_tools": False,
+            "supports_stream": False,
+        },
         "priority": 30,
     },
     {

@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     agents,
     apps,
+    audio,
     auth,
     billing,
     connector_ws,
@@ -36,6 +37,7 @@ api_router.include_router(agents.router)
 api_router.include_router(tools.router)
 api_router.include_router(apps.router)
 api_router.include_router(inbound.router)
+api_router.include_router(audio.router)
 api_router.include_router(runs.router)
 api_router.include_router(devices.router)
 api_router.include_router(connector_ws.router)

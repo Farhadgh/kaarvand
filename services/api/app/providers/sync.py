@@ -131,12 +131,16 @@ async def apply_manual_price(
     image_price: Decimal | None,
     currency: str,
     note: str | None,
+    audio_input_price: Decimal | None = None,
+    audio_output_price: Decimal | None = None,
 ) -> PriceHistory:
     now = datetime.now(UTC)
     model.input_price = input_price
     model.output_price = output_price
     model.cached_input_price = cached_input_price
     model.image_price = image_price
+    model.audio_input_price = audio_input_price
+    model.audio_output_price = audio_output_price
     model.price_currency = currency
     model.price_source = "manual"
     model.price_synced_at = now
@@ -147,6 +151,8 @@ async def apply_manual_price(
         output_price=output_price,
         cached_input_price=cached_input_price,
         image_price=image_price,
+        audio_input_price=audio_input_price,
+        audio_output_price=audio_output_price,
         currency=currency,
         source=f"manual:{note}" if note else "manual",
     )

@@ -46,6 +46,45 @@ def to_irr(
     return int(amount.quantize(IRR_QUANT, rounding=ROUND_HALF_UP))
 
 
+def compute_audio_cost(
+    *,
+    audio_seconds: int = 0,
+    audio_chars: int = 0,
+    per_minute_price: Any = None,
+    per_1k_chars_price: Any = None,
+) -> Decimal:
+    """Audio is billed per unit, not per token.
+
+    ``per_minute_price``  -> USD per audio minute (speech-to-text)
+    ``per_1k_chars_price`` -> USD per 1000 characters (text-to-speech)
+    """
+    minutes = Decimal(max(int(audio_seconds or 0), 0)) / Decimal(60)
+    kilo_chars = Decimal(max(int(audio_chars or 0), 0)) / Decimal(1000)
+    total = minutes * _dec(per_minute_price) + kilo_chars * _dec(per_1k_chars_price)
+    return total.quantize(USD_QUANT, rounding=ROUND_HALF_UP)
+
+
+def price_audio_usage(
+    model: Any,
+    *,
+    audio_seconds: int = 0,
+    audio_chars: int = 0,
+    fx_rate: Any,
+) -> tuple[Decimal, int]:
+    """(cost_usd, cost_irr) for one audio call on a ``Model`` row."""
+    cost = compute_audio_cost(
+        audio_seconds=audio_seconds,
+        audio_chars=audio_chars,
+        per_minute_price=getattr(model, "audio_input_price", None),
+        per_1k_chars_price=getattr(model, "audio_output_price", None),
+    )
+    return cost, to_irr(
+        cost,
+        markup_percent=getattr(model, "markup_percent", 0),
+        fx_rate=fx_rate,
+    )
+
+
 def price_model_usage(
     model: Any,
     *,

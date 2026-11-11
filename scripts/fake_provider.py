@@ -13,12 +13,22 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import StreamingResponse
 
 app = FastAPI(title="Fake OpenAI-compatible provider")
 
 MODELS = [
+    {
+        "id": "fake-whisper-stt",
+        "owned_by": "fake",
+        "pricing": {"prompt": "0.006", "completion": "0"},
+    },
+    {
+        "id": "fake-tts-voice",
+        "owned_by": "fake",
+        "pricing": {"prompt": "0", "completion": "0.015"},
+    },
     {
         "id": "fake-vision-vl",
         "owned_by": "fake",
@@ -47,6 +57,32 @@ async def echo(request: Request) -> dict:
     """Endpoint used by the tool demo (declarative HTTP tool)."""
     body = await request.json()
     return {"ok": True, "result": {"id": "m-123", "echo": body.get("text", "")}}
+
+
+@app.post("/v1/audio/transcriptions")
+async def audio_transcriptions(request: Request) -> dict:
+    """Fake speech-to-text: returns fixed text + a duration so cost can be checked."""
+    form = await request.form()
+    uploaded = form.get("file")
+    size = 0
+    if uploaded is not None and hasattr(uploaded, "read"):
+        size = len(await uploaded.read())
+    return {
+        "text": ANSWER,
+        "language": form.get("language") or "fa",
+        "duration": 6.0,
+        "bytes_received": size,
+    }
+
+
+@app.post("/v1/audio/speech")
+async def audio_speech(request: Request) -> Response:
+    """Fake text-to-speech: one second of silent WAV."""
+    body = await request.json()
+    fmt = str(body.get("response_format") or "mp3")
+    mime = {"mp3": "audio/mpeg", "wav": "audio/wav", "opus": "audio/ogg"}.get(fmt, "audio/mpeg")
+    payload = b"RIFF$\x00\x00\x00WAVEfmt " if fmt == "wav" else b"ID3\x03\x00\x00\x00fake"
+    return Response(content=payload, media_type=mime)
 
 
 @app.post("/v1/chat/completions")

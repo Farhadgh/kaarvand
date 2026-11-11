@@ -1,6 +1,6 @@
 # کاروند (Kaarvand) — پلتفرم ایجنت هوش مصنوعی فارسی
 
-## وضعیت: **قدم ۱ تا ۱۳ انجام شده** — نسخهٔ زنده روی <https://kaarvand.amigok.cloud>
+## وضعیت: **قدم ۱ تا ۱۴ انجام شده** — نسخهٔ زنده روی <https://kaarvand.amigok.cloud>
 
 | قدم | محتوا | وضعیت |
 |---|---|---|
@@ -17,6 +17,7 @@
 | ۱۱ | تست وبهوک از پنل + ثبت خودکار setWebhook + `APP_PUBLIC_BASE_URL` | ✅ |
 | ۱۲ | تغییر برند به «کاروند (Kaarvand)» + آماده‌سازی ریپوی گیت‌هاب | ✅ |
 | ۱۳ | استقرار روی سرور: systemd + nginx + Let's Encrypt → `https://kaarvand.amigok.cloud` | ✅ |
+| ۱۴ | مدل‌های صوتی: گفتار→متن و متن→گفتار + صفحهٔ «صدا و گفتار» + قیمت‌گذاری دقیقه/نویسه | ✅ |
 
 ### اجرای سریع پنل
 
@@ -42,7 +43,7 @@ cd apps/web; npm install; npm run dev   # http://localhost:3000
 | [docs/inbound.md](docs/inbound.md) | کانال‌های ورودی: وبهوک تلگرام/واتساپ + پاسخ خودکار |
 | [docs/deploy.md](docs/deploy.md) | استقرار روی سرور: systemd، nginx، TLS، بکاپ |
 | [docs/apps.md](docs/apps.md) | کاتالوگ برنامه‌ها: واتساپ، تلگرام، آفیس، برنامه‌های دستگاه |
-| [docs/api.md](docs/api.md) | ۱۰۴ عملیات REST + SSE + WebSocket |
+| [docs/api.md](docs/api.md) | ۱۱۱ عملیات REST + SSE + WebSocket |
 | [docs/tool-contract.md](docs/tool-contract.md) | چهار نوع ابزار، اسکریپت اقدام، ماتریس ریسک |
 | [docs/prompts.md](docs/prompts.md) | پرامپت‌ها، متغیرها، نسخه‌بندی |
 | [docs/security.md](docs/security.md) | RLS، رمزنگاری، RBAC، مدل تهدید |

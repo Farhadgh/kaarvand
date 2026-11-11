@@ -78,6 +78,9 @@ class UsageLedger(UUIDPrimaryKey, Base):
     )
     tokens_in: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     tokens_out: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # audio usage: STT bills by seconds, TTS by characters
+    audio_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    audio_chars: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(14, 8), default=0, nullable=False)
     markup_percent: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0, nullable=False)
     fx_rate: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0, nullable=False)

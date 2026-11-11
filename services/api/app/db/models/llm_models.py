@@ -51,6 +51,11 @@ class Model(UUIDPrimaryKey, TimestampMixin, Base):
     output_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 10), nullable=True)
     cached_input_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 10), nullable=True)
     image_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 10), nullable=True)
+    # audio models are priced per unit, not per token:
+    #   audio_input_price  -> USD per audio MINUTE (STT / whisper)
+    #   audio_output_price -> USD per 1K CHARACTERS (TTS / speech)
+    audio_input_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 10), nullable=True)
+    audio_output_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 10), nullable=True)
     price_unit: Mapped[str] = mapped_column(String(16), default="per_token", nullable=False)
     price_currency: Mapped[str] = mapped_column(String(8), default="USD", nullable=False)
     price_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -79,6 +84,8 @@ class PriceHistory(UUIDPrimaryKey, Base):
     output_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 10), nullable=True)
     cached_input_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 10), nullable=True)
     image_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 10), nullable=True)
+    audio_input_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 10), nullable=True)
+    audio_output_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 10), nullable=True)
     currency: Mapped[str] = mapped_column(String(8), default="USD", nullable=False)
     source: Mapped[str | None] = mapped_column(String(32), nullable=True)
 

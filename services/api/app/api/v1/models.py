@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
@@ -19,6 +19,7 @@ from app.providers.gateway import stream_model
 from app.providers.sync import apply_manual_price
 from app.schemas.providers import (
     ManualPriceIn,
+    ModelCreate,
     ModelOut,
     ModelProbeIn,
     ModelProbeOut,
@@ -128,10 +129,77 @@ async def set_manual_price(
         output_price=payload.output_price,
         cached_input_price=payload.cached_input_price,
         image_price=payload.image_price,
+        audio_input_price=payload.audio_input_price,
+        audio_output_price=payload.audio_output_price,
         currency=payload.currency,
         note=payload.note,
     )
     return PriceHistoryOut.model_validate(entry)
+
+
+@router.post("/models", response_model=ModelOut, status_code=201)
+async def create_model(
+    payload: ModelCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(admin_only),
+) -> ModelOut:
+    """Add a catalog entry by hand (used for speech models a provider omits)."""
+    provider = await db.get(Provider, payload.provider_id)
+    if provider is None or provider.org_id != user.org_id:
+        raise NotFoundError(code="provider.not_found")
+
+    exists = (
+        await db.execute(
+            select(Model).where(
+                Model.provider_id == provider.id, Model.external_id == payload.external_id
+            )
+        )
+    ).scalar_one_or_none()
+    if exists is not None:
+        raise AppError(
+            code="model.exists",
+            status_code=409,
+            params={"external_id": payload.external_id},
+        )
+
+    meta: dict[str, Any] = {}
+    if payload.audio_kind:
+        meta["audio_kind"] = payload.audio_kind
+    if payload.voices:
+        meta["voices"] = payload.voices
+
+    model = Model(
+        provider_id=provider.id,
+        external_id=payload.external_id,
+        display_name_fa=payload.display_name_fa,
+        family=payload.family,
+        supports_audio=payload.audio_kind is not None,
+        supports_tools=not payload.audio_kind,
+        supports_stream=not payload.audio_kind,
+        input_price=payload.input_price,
+        output_price=payload.output_price,
+        audio_input_price=payload.audio_input_price,
+        audio_output_price=payload.audio_output_price,
+        price_unit="per_minute" if payload.audio_kind == "stt" else "per_token",
+        price_source="manual",
+        is_enabled=payload.is_enabled,
+        modalities=["text", "audio"] if payload.audio_kind else ["text"],
+        meta=meta,
+    )
+    db.add(model)
+    await db.flush()
+    return ModelOut.model_validate(model)
+
+
+@router.delete("/models/{model_id}", status_code=204)
+async def delete_model(
+    model_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(admin_only),
+) -> None:
+    model = await get_model(db, user, model_id)
+    await db.delete(model)
+    await db.flush()
 
 
 @router.get("/models/{model_id}/prices", response_model=list[PriceHistoryOut])

@@ -6,6 +6,7 @@ export const nav = [
   { href: "/agents", label: "ایجنت‌ها", icon: "bot" },
   { href: "/providers", label: "پروایدرها", icon: "plug" },
   { href: "/models", label: "مدل‌ها", icon: "cpu" },
+  { href: "/audio", label: "صدا و گفتار", icon: "mic" },
   { href: "/prompts", label: "پرامپت‌ها", icon: "fileText" },
   { href: "/tools", label: "ابزارها", icon: "wrench" },
   { href: "/apps", label: "برنامه‌ها", icon: "plug" },

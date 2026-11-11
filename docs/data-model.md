@@ -24,7 +24,7 @@
 | `provider_adapters` | کاتالوگ ۱۲ نوع (seed) با عنوان فارسی و `spec_schema` |
 | `providers` | kind, base_url, auth_type, **credentials_enc**(AES-GCM), extra_headers, `chat_spec`/`response_map` برای declarative, models_url, prices_url, priority, health |
 | `models` | یکتا (provider_id, external_id)، قابلیت‌ها، ۴ قیمت، markup، `is_enabled` |
-| `price_history` | append-only؛ `effective_from` + منبع (`provider`/`litellm`/`manual`) |
+| `price_history` | append-only؛ `effective_from` + منبع (`provider`/`litellm`/`manual`) + قیمت صوتی (`audio_input_price` دلار/دقیقه، `audio_output_price` دلار/۱۰۰۰ نویسه) |
 | `capability_rules` | regex → قابلیت (استنتاج هنگام سینک) |
 
 ## ۳) پرامپت
@@ -66,7 +66,7 @@
 | `runs` | status(queued/running/waiting_approval/completed/failed/cancelled)، steps_taken، tokens، cost_usd/cost_irr/**fx_rate**، **state(JSONB)** برای ادامه‌ی اجرا |
 | `trace_spans` | گام‌های ریز برای دیباگ |
 | `tool_invocations` | args/result/status/risk/latency/**approved_by** — حتی برای خطاها (تراکنش جدا) |
-| `usage_ledger` | append-only: tokens، cost_usd، markup، **fx_rate**، cost_irr، billable |
+| `usage_ledger` | append-only: tokens، cost_usd، markup، **fx_rate**، cost_irr، billable، `audio_seconds` (STT) و `audio_chars` (TTS) |
 | `audit_logs` | زنجیره‌ی هش (`prev_hash`, `hash`) |
 
 **چرا `fx_rate` در هر ردیف مصرف؟** فاکتور ماه بعد نباید با تغییر نرخ ارز به‌هم بریزد.

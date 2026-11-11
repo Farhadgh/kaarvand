@@ -124,6 +124,16 @@ export const errorMessages: Record<string, string> = {
   "system.db_unavailable": "اتصال به پایگاه داده برقرار نیست.",
   "network": "ارتباط با سرور برقرار نشد؛ اتصال شبکه را بررسی کنید.",
   "unknown": "خطای نامشخص رخ داد.",
+  "audio.not_audio_model": "این مدل قابلیت صوتی ندارد؛ یک مدل گفتار یا متن‌به‌گفتار انتخاب کنید.",
+  "audio.unknown_kind": "نوع مدل صوتی مشخص نیست (stt یا tts).",
+  "audio.wrong_kind": "این مدل برای این عملیات ساخته نشده است (گفتار→متن یا متن→گفتار).",
+  "audio.unsupported_provider": "پروایدر این مدل از API صوتی پشتیبانی نمی‌کند.",
+  "audio.empty_file": "فایل صوتی خالی است.",
+  "audio.file_too_large": "حجم فایل صوتی بیش از حد مجاز است.",
+  "audio.empty_text": "متنی برای تبدیل به گفتار وارد نشده است.",
+  "audio.text_too_long": "متن طولانی‌تر از حد مجاز است؛ آن را کوتاه‌تر کنید.",
+  "audio.invalid_response": "پاسخ پروایدر برای درخواست صوتی قابل خواندن نبود.",
+  "model.exists": "این مدل قبلاً برای همین پروایدر ثبت شده است.",
 };
 
 export function translateCode(code: string | undefined | null): string {

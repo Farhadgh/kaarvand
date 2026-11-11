@@ -413,7 +413,46 @@ POST /v1/channels
 
 راهنمای کامل: [inbound.md](inbound.md)
 
-## ۱۵) شروع سریع با PowerShell
+## ۱۵) صدا و گفتار (STT / TTS)
+
+تبدیل گفتار به متن و متن به گفتار با مدل‌هایی که `supports_audio=true` دارند. نوع مدل
+(`stt` یا `tts`) از `meta.audio_kind` خوانده می‌شود و اگر نبود از شناسهٔ مدل استنتاج می‌شود
+(`whisper*`, `transcribe*` → STT؛ `tts*`, `*voice`, `speech` → TTS).
+
+| متد | مسیر | نقش | توضیح |
+|---|---|---|---|
+| GET | `/audio/meta` | همه | محدودیت‌ها: `max_upload_mb`, `max_tts_chars`, `voices`, `formats` |
+| GET | `/audio/presets` | همه | فهرست مدل‌های آماده (whisper-1، tts-1، gpt-4o-mini-tts …) |
+| GET | `/audio/models?kind=stt\|tts` | همه | مدل‌های صوتی فعال سازمان |
+| POST | `/audio/transcriptions` | operator | `multipart/form-data`: `file`, `model_id`, `language?`, `prompt?` |
+| POST | `/audio/speech` | operator | JSON: `model_id`, `text` (≤ ۴۰۰۰), `voice`, `format`, `speed?` → فایل صوتی |
+| GET | `/audio/speech/estimate` | همه | برآورد هزینه بدون فراخوانی پروایدر |
+| POST | `/models` | owner/admin | افزودن دستی مدل (شامل `audio_kind` و قیمت‌های صوتی) |
+| DELETE | `/models/{id}` | owner/admin | حذف مدل از کاتالوگ |
+
+**هزینه‌گذاری:** STT بر اساس **دقیقهٔ صدا** (`models.audio_input_price`، دلار بر دقیقه،
+`ceil` روی ثانیه) و TTS بر اساس **هزار نویسه** (`models.audio_output_price`). هر دو با
+`markup_percent` و نرخ ارز به ریال تبدیل و در `usage_ledger` با ستون‌های `audio_seconds` /
+`audio_chars` ثبت می‌شوند. اگر قیمت مدل صفر باشد، هزینهٔ صفر ثبت می‌شود (نه خطا).
+
+**نمونه (PowerShell):**
+
+```powershell
+$h = @{ Authorization = "Bearer $($login.access_token)" }
+Invoke-RestMethod "http://127.0.0.1:8000/v1/audio/transcriptions" -Method Post -Headers $h `
+  -Form @{ model_id = $sttModelId; language = "fa"; file = Get-Item .\voice.m4a }
+
+Invoke-WebRequest "http://127.0.0.1:8000/v1/audio/speech" -Method Post -Headers $h `
+  -ContentType "application/json" `
+  -Body (@{ model_id = $ttsModelId; text = "سلام، این یک نمونه است." } | ConvertTo-Json) `
+  -OutFile .\speech.mp3
+```
+
+**خطاهای اختصاصی:** `audio.not_audio_model` · `audio.unknown_kind` · `audio.wrong_kind` ·
+`audio.unsupported_provider` · `audio.empty_file` · `audio.file_too_large` ·
+`audio.empty_text` · `audio.text_too_long` · `model.exists` · ۵۰۲ برای خطای پروایدر.
+
+## ۱۶) شروع سریع با PowerShell
 
 ```powershell
 $api = "http://127.0.0.1:8010"
