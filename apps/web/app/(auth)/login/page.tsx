@@ -11,7 +11,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-lg font-bold text-white">
-            OB
+            ک
           </div>
           <h1 className="text-xl font-bold text-ink-900">{messages.loginTitle}</h1>
           <p className="muted mt-1">{messages.loginSubtitle}</p>
