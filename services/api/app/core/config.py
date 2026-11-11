@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # --- identity ----------------------------------------------------------
     app_name: str = "کاروند"
     app_version: str = "0.1.0"
-    app_env: Literal["dev", "prod"] = "dev"
+    app_env: Literal["dev", "prod", "test"] = "dev"
     debug: bool = True
     api_prefix: str = "/v1"
 
