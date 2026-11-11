@@ -1,6 +1,6 @@
 # کاروند (Kaarvand) — پلتفرم ایجنت هوش مصنوعی فارسی
 
-## وضعیت: **قدم ۱ تا ۱۲ انجام شده** (هسته + کانکتور + پنل + زمان‌بند + برنامه‌ها + وبهوک + برند کاروند)
+## وضعیت: **قدم ۱ تا ۱۳ انجام شده** — نسخهٔ زنده روی <https://kaarvand.amigok.cloud>
 
 | قدم | محتوا | وضعیت |
 |---|---|---|
@@ -16,6 +16,7 @@
 | ۱۰ | کانال‌های ورودی (وبهوک تلگرام/واتساپ + پاسخ خودکار ایجنت + ضد تکرار) | ✅ |
 | ۱۱ | تست وبهوک از پنل + ثبت خودکار setWebhook + `APP_PUBLIC_BASE_URL` | ✅ |
 | ۱۲ | تغییر برند به «کاروند (Kaarvand)» + آماده‌سازی ریپوی گیت‌هاب | ✅ |
+| ۱۳ | استقرار روی سرور: systemd + nginx + Let's Encrypt → `https://kaarvand.amigok.cloud` | ✅ |
 
 ### اجرای سریع پنل
 
@@ -39,6 +40,7 @@ cd apps/web; npm install; npm run dev   # http://localhost:3000
 | [docs/architecture.md](docs/architecture.md) | معماری و تصمیم‌های فنی |
 | [docs/data-model.md](docs/data-model.md) | ۴۰ جدول + RLS |
 | [docs/inbound.md](docs/inbound.md) | کانال‌های ورودی: وبهوک تلگرام/واتساپ + پاسخ خودکار |
+| [docs/deploy.md](docs/deploy.md) | استقرار روی سرور: systemd، nginx، TLS، بکاپ |
 | [docs/apps.md](docs/apps.md) | کاتالوگ برنامه‌ها: واتساپ، تلگرام، آفیس، برنامه‌های دستگاه |
 | [docs/api.md](docs/api.md) | ۱۰۴ عملیات REST + SSE + WebSocket |
 | [docs/tool-contract.md](docs/tool-contract.md) | چهار نوع ابزار، اسکریپت اقدام، ماتریس ریسک |
