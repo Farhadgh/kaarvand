@@ -187,6 +187,45 @@ Invoke-RestMethod "$api/v1/channels/$($ch.id)/test" -Method Post -Headers $h -Co
 Invoke-RestMethod "$api/v1/channels/$($ch.id)/register-webhook" -Method Post -Headers $h
 ```
 
+## دموی ۱۱ — تبدیل صدا (گفتار↔متن) (قدم ۱۴)
+
+**در پنل:** `/audio` → تب «گفتار به متن» → انتخاب مدل → انتخاب فایل صوتی → «تبدیل به متن».
+سپس تب «متن به گفتار» → متن را بنویسید → «برآورد هزینه» → «تولید صدا» → پخش و دانلود.
+
+**اگر مدل صوتی ندارید:** پایین همان صفحه، کارت «افزودن مدل صوتی» → پروایدر را انتخاب کنید →
+یکی از مدل‌های آماده (`whisper-1`, `tts-1`, …) → «افزودن».
+
+**خط فرمان (پروایدر آزمایشی محلی، بدون اینترنت):**
+
+```powershell
+python scripts\fake_provider.py        # پروایدر آزمایشی روی 8020
+$api = "http://127.0.0.1:8000"
+$login = Invoke-RestMethod "$api/v1/auth/login" -Method Post -ContentType 'application/json' `
+  -Body '{"email":"admin@openbot.local","password":"admin12345"}'
+$h = @{ Authorization = "Bearer $($login.access_token)" }
+
+# ۱) ثبت دو مدل صوتی روی پروایدر آزمایشی
+$p = (Invoke-RestMethod "$api/v1/providers" -Headers $h | Where-Object { $_.base_url -like '*8020*' })[0]
+Invoke-RestMethod "$api/v1/models" -Method Post -Headers $h -ContentType 'application/json' `
+  -Body (@{ provider_id=$p.id; external_id='fake-whisper-stt'; audio_kind='stt'; audio_input_price='0.006' } | ConvertTo-Json)
+Invoke-RestMethod "$api/v1/models" -Method Post -Headers $h -ContentType 'application/json' `
+  -Body (@{ provider_id=$p.id; external_id='fake-tts-voice'; audio_kind='tts'; audio_output_price='0.015' } | ConvertTo-Json)
+
+# ۲) گفتار به متن (۹۰ ثانیه صدا = ۱٫۵ دقیقه → ۰٫۰۰۹ دلار)
+$m = Invoke-RestMethod "$api/v1/audio/models?kind=stt" -Headers $h
+curl.exe -sS -X POST "$api/v1/audio/transcriptions" -H "Authorization: Bearer $($login.access_token)" `
+  -F "model_id=$($m[0].id)" -F "language=fa" -F "file=@voice.wav"
+# → {"text":"...","seconds":6.0,"cost_usd":"0.00060000","cost_irr":600}
+```
+
+**چه چیزی را ثابت می‌کند:** مدل صوتی از دیتابیس می‌آید (نه کد)، هزینه بر اساس واحد درست
+(دقیقه/نویسه) محاسبه و در `usage_ledger` ثبت می‌شود، و خروجی صوتی به‌صورت باینری از BFF رد
+می‌شود (بدون خراب‌شدن فایل).
+
+> **نکتهٔ پروایدر:** برای صدای واقعی به پروایدری نیاز دارید که API صوتی OpenAI را پیاده کند
+> (`openai`, `openai_compatible`, `groq`, `together`, `azure_openai`). OpenRouter endpoint صوتی
+> ندارد و خطای `audio.unsupported_provider` می‌دهد.
+
 ## اجرای تست‌ها
 
 ```powershell
