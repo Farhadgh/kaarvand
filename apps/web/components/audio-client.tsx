@@ -16,6 +16,9 @@ import type {
 
 type Tab = "stt" | "tts";
 
+/** provider kinds whose adapter implements /audio/transcriptions + /audio/speech */
+const AUDIO_CAPABLE_KINDS = ["openai", "openai_compatible", "groq", "together", "azure_openai"];
+
 export function AudioClient({
   models,
   meta,
@@ -419,6 +422,8 @@ function AddModelCard({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const selectedProvider = providers.find((provider) => provider.id === providerId);
+  const audioCapable = !selectedProvider || AUDIO_CAPABLE_KINDS.includes(selectedProvider.kind);
 
   async function addFromPreset() {
     const preset = presets.find((item) => item.slug === presetSlug);
@@ -504,6 +509,14 @@ function AddModelCard({
               ))}
             </select>
           </Field>
+        )}
+
+        {audioCapable ? null : (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            این پروایدر ({selectedProvider?.kind}) نقطهٔ پایانی صوتی ندارد؛ مدل اضافه می‌شود ولی
+            فراخوانی صوتی خطای «پروایدر پشتیبانی نمی‌کند» می‌دهد. برای صدا از پروایدری با نوع
+            openai / openai_compatible / groq / together / azure_openai استفاده کنید.
+          </p>
         )}
 
         <div className="rounded-lg border border-ink-100 p-3">
