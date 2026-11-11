@@ -1,0 +1,215 @@
+"""Model catalog endpoints: browse, tune, price."""
+
+from __future__ import annotations
+
+import uuid
+from typing import Literal
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.billing.cost import price_model_usage
+from app.billing.fx import current_fx_rate
+from app.core.config import Settings, get_settings
+from app.core.deps import get_current_user, get_db, require_roles
+from app.core.errors import AppError, NotFoundError
+from app.db.models import Model, PriceHistory, Provider, User
+from app.providers.gateway import stream_model
+from app.providers.sync import apply_manual_price
+from app.schemas.providers import (
+    ManualPriceIn,
+    ModelOut,
+    ModelProbeIn,
+    ModelProbeOut,
+    ModelUpdate,
+    PriceHistoryOut,
+)
+
+router = APIRouter(tags=["models"])
+admin_only = require_roles("owner", "admin")
+
+Capability = Literal["tools", "vision", "audio", "reasoning", "stream"]
+
+
+async def get_model(db: AsyncSession, user: User, model_id: uuid.UUID) -> Model:
+    model = (
+        await db.execute(
+            select(Model)
+            .join(Provider, Provider.id == Model.provider_id)
+            .where(Model.id == model_id, Provider.org_id == user.org_id)
+        )
+    ).scalar_one_or_none()
+    if model is None:
+        raise NotFoundError(code="model.not_found")
+    return model
+
+
+@router.get("/models", response_model=list[ModelOut])
+async def list_models(
+    provider_id: uuid.UUID | None = None,
+    capability: Capability | None = None,
+    q: str | None = Query(default=None, max_length=120),
+    enabled_only: bool = True,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[ModelOut]:
+    stmt = (
+        select(Model)
+        .join(Provider, Provider.id == Model.provider_id)
+        .where(Provider.org_id == user.org_id)
+    )
+    if provider_id:
+        stmt = stmt.where(Model.provider_id == provider_id)
+    if enabled_only:
+        stmt = stmt.where(Model.is_enabled.is_(True), Provider.is_enabled.is_(True))
+    if capability == "tools":
+        stmt = stmt.where(Model.supports_tools.is_(True))
+    elif capability == "vision":
+        stmt = stmt.where(Model.supports_vision.is_(True))
+    elif capability == "audio":
+        stmt = stmt.where(Model.supports_audio.is_(True))
+    elif capability == "reasoning":
+        stmt = stmt.where(Model.supports_reasoning.is_(True))
+    elif capability == "stream":
+        stmt = stmt.where(Model.supports_stream.is_(True))
+    if q:
+        from app.core.text_fa import normalize_fa
+
+        needle = f"%{normalize_fa(q)}%"
+        stmt = stmt.where(
+            Model.external_id.ilike(needle)
+            | Model.display_name_fa.ilike(needle)
+            | Model.family.ilike(needle)
+        )
+
+    stmt = stmt.order_by(Model.family, Model.external_id).limit(limit).offset(offset)
+    rows = (await db.execute(stmt)).scalars().all()
+    return [ModelOut.model_validate(row) for row in rows]
+
+
+@router.get("/models/{model_id}", response_model=ModelOut)
+async def read_model(
+    model_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ModelOut:
+    return ModelOut.model_validate(await get_model(db, user, model_id))
+
+
+@router.patch("/models/{model_id}", response_model=ModelOut)
+async def update_model(
+    model_id: uuid.UUID,
+    payload: ModelUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(admin_only),
+) -> ModelOut:
+    model = await get_model(db, user, model_id)
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(model, key, value)
+    await db.flush()
+    return ModelOut.model_validate(model)
+
+
+@router.post("/models/{model_id}/price", response_model=PriceHistoryOut)
+async def set_manual_price(
+    model_id: uuid.UUID,
+    payload: ManualPriceIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(admin_only),
+) -> PriceHistoryOut:
+    model = await get_model(db, user, model_id)
+    entry = await apply_manual_price(
+        db,
+        model,
+        input_price=payload.input_price,
+        output_price=payload.output_price,
+        cached_input_price=payload.cached_input_price,
+        image_price=payload.image_price,
+        currency=payload.currency,
+        note=payload.note,
+    )
+    return PriceHistoryOut.model_validate(entry)
+
+
+@router.get("/models/{model_id}/prices", response_model=list[PriceHistoryOut])
+async def price_history(
+    model_id: uuid.UUID,
+    limit: int = Query(default=50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[PriceHistoryOut]:
+    model = await get_model(db, user, model_id)
+    rows = (
+        (
+            await db.execute(
+                select(PriceHistory)
+                .where(PriceHistory.model_id == model.id)
+                .order_by(PriceHistory.effective_from.desc())
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [PriceHistoryOut.model_validate(row) for row in rows]
+
+
+@router.post("/models/{model_id}/probe", response_model=ModelProbeOut)
+async def probe_model(
+    model_id: uuid.UUID,
+    payload: ModelProbeIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(admin_only),
+    settings: Settings = Depends(get_settings),
+) -> ModelProbeOut:
+    """Real (billable) call through the gateway: streaming + cost in one shot."""
+    model = await get_model(db, user, model_id)
+
+    parts: list[str] = []
+    tokens_in = 0
+    tokens_out = 0
+    fallback_used = False
+    failure = None
+
+    async for chunk in stream_model(
+        db,
+        model=model,
+        messages=[{"role": "user", "content": payload.prompt}],
+        max_tokens=payload.max_tokens,
+    ):
+        if chunk.type == "text" and chunk.text:
+            parts.append(chunk.text)
+        elif chunk.type == "usage":
+            tokens_in = chunk.tokens_in or 0
+            tokens_out = chunk.tokens_out or 0
+        elif chunk.type == "notice":
+            fallback_used = True
+        elif chunk.type == "error":
+            failure = chunk
+
+    if failure is not None:
+        raise AppError(
+            code=failure.error_code or "provider.call_failed",
+            status_code=502,
+            params={"detail": failure.detail},
+        )
+
+    fx_rate = await current_fx_rate(db, settings)
+    cost_usd, cost_irr = price_model_usage(
+        model,
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        fx_rate=fx_rate,
+    )
+    return ModelProbeOut(
+        text="".join(parts),
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        cost_usd=cost_usd,
+        cost_irr=cost_irr,
+        fx_rate=fx_rate,
+        fallback_used=fallback_used,
+    )

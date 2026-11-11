@@ -1,0 +1,65 @@
+[project]
+name = "kaarvand-api"
+version = "0.1.0"
+description = "Kaarvand - Persian AI agent platform (backend)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "sqlalchemy[asyncio]>=2.0.35",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "pgvector>=0.3",
+    "pyjwt>=2.9",
+    "argon2-cffi>=23.1",
+    "cryptography>=43",
+    "structlog>=24.4",
+    "python-multipart>=0.0.9",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pgserver>=0.1.4",
+    "respx>=0.21",
+    "ruff>=0.6",
+]
+# optional: offline price table for providers that do not publish prices.
+# it adds a ~40s first import, so it is NOT a runtime requirement.
+prices = ["litellm>=1.100"]
+# optional: real Windows automation for the desktop connector (app.launch,
+# UI Automation, clipboard, screenshots). Without it the reference connector
+# still runs but office/COM/UI steps report `simulated`.
+connector = [
+    "pywin32>=306; sys_platform == 'win32'",
+    "uiautomation>=2.0; sys_platform == 'win32'",
+    "pygetwindow>=0.0.9; sys_platform == 'win32'",
+    "pyautogui>=0.9.54",
+    "psutil>=5.9",
+    "Pillow>=10",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
+# B008: FastAPI Depends() in defaults is the framework idiom
+# ASYNC109: our `timeout` arguments are httpx timeouts, not asyncio ones
+ignore = ["B008", "ASYNC109"]
+
+[tool.ruff.lint.per-file-ignores]
+# seed data is long Persian literals (setup instructions, prompts); wrapping them
+# would make the data harder to read and diff than the line-count win is worth.
+"app/seeding/apps_seed.py" = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

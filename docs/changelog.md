@@ -1,0 +1,299 @@
+# تغییرات (Changelog)
+
+هر قدم با «شاهد» ثبت شده است؛ یعنی چیزی که واقعاً اجرا شده، نه ادعا.
+
+## قدم ۱۲ — تغییر برند به «کاروند» (Kaarvand) ✔
+
+**تغییرات:**
+
+| فایل | تغییر |
+|---|---|
+| `services/api/app/core/config.py:27` | `app_name = "کاروند"` → `/v1/meta` و عنوان FastAPI |
+| `services/api/.env.example` | افزودن `APP_APP_NAME=کاروند` (قابل override در سرور) |
+| `apps/web/app/layout.tsx:15-17` | `title: "کاروند — پنل مدیریت"` + description کاروند |
+| `apps/web/app/(auth)/login/page.tsx:6` | `title: "ورود — کاروند"` |
+| `apps/web/components/shell.tsx:79-82,134` | نشان «ک» + «کاروند» در سایدبار و fallback هدر |
+| `apps/web/package.json` | `@kaarvand/web` (+ همگام‌سازی `package-lock.json`) |
+| `services/api/pyproject.toml` | `kaarvand-api` + description |
+| `services/api/app/api/v1/usage.py:290` | نام فایل خروجی: `kaarvand-usage-*.xlsx` |
+| `app/__init__.py`, `app/main.py` | docstring → Kaarvand |
+| `app/tools/mcp.py:90` | `clientInfo.name = "kaarvand"` |
+| `app/providers/adapters/openai_chat.py:75-76` | `HTTP-Referer: https://kaarvand.ir` · `X-Title: Kaarvand` |
+
+**عمداً تغییر نکرد:** نام دیتابیس/نقش (`openbot_app`, `openbot`, `openbot_test`)، ایمیل ادمین پیش‌فرض
+(`admin@openbot.local` — روی سرور با `OPENBOT_ADMIN_EMAIL` قبل از seed عوض می‌شود) و نام لاگرها
+(`openbot.*`) تا داده و فیلترهای لاگ نشکنند.
+
+**شاهد:** `GET /v1/meta` → `app_name=کاروند`؛ `<title>` صفحهٔ ورود «ورود — کاروند»؛ هدر پنل «کاروند»؛
+هدر `Content-Disposition` خروجی اکسل `kaarvand-usage-…xlsx`؛ `ruff` پاک و کل تست‌ها سبز.
+
+## قدم ۱۱ — تست آسان وبهوک و استقرار ✔
+
+**ساخته شد:** `POST /v1/channels/{id}/test`، `POST /v1/channels/{id}/register-webhook`،
+`APP_PUBLIC_BASE_URL`، `webhook_url`/`last_event_status`/`last_reply_status`/`last_error` در پاسخ
+کانال، و دو دکمهٔ تازه در پنل.
+
+- **«تست وبهوک»**: یک پیام ساختگی از همان مسیر پارسر → dedupe → اجرا → پاسخ رد می‌شود و نتیجه
+  (وضعیت اجرا، وضعیت پاسخ، متن ایجنت، لینک اجرا) همان‌جا در کارت کانال نشان داده می‌شود.
+  بدون گوشی و بدون تلگرام. اگر ابزاری نیاز به تأیید داشته باشد، `needs_approval=true` برمی‌گردد
+  و پیام «منتظر تأیید» نمایش داده می‌شود (پاسخی ارسال نمی‌شود).
+- **«ثبت وبهوک در تلگرام»**: سرور با توکن رمزنگاری‌شدهٔ ابزار تلگرام، `setWebhook` را با
+  `url`، `secret_token` و `allowed_updates=["message"]` صدا می‌زند و `description` تلگرام را
+  برمی‌گرداند. برای واتساپ `422 inbound.register_unsupported` (پیکربندی فقط از پنل متا).
+- **`APP_PUBLIC_BASE_URL`**: اگر ست شود، `webhook_url` مطلق از همان دامنه ساخته می‌شود
+  (`https://bot.example.com/v1/inbound/...`)؛ وگرنه از آدرس درخواست و با پرچم
+  `public_base_url=false` (هشدار «دامنهٔ عمومی نیست» در پنل).
+- **نمای آخرین رویداد** در فهرست کانال‌ها: وضعیت، وضعیت پاسخ و آخرین خطا بدون درخواست دوم.
+
+**شاهد زنده:**
+- `POST /test` روی کانال واقعی → `run=completed`, `reply=sent` و متن پاسخ ایجنت.
+- با ابزار تأییددار → `run=waiting_approval`, `needs_approval=true`, پاسخی ارسال نشد.
+- `POST /register-webhook` → URL درست ساخته شد و درخواست واقعی به `api.telegram.org` رفت
+  (اینجا `ConnectTimeout` چون شبکهٔ این ماشین به تلگرام دسترسی ندارد — همان چیزی که روی سرور
+  ایرانی هم رخ می‌دهد؛ با دامنهٔ عمومی + سرور خارج یا `proxy` روی ابزار حل می‌شود).
+- با `APP_PUBLIC_BASE_URL=https://bot.example.com` → `webhook_url` همان دامنه را نشان داد.
+
+**باگ رفع‌شده در مسیر:** seed کاتالوگ روی دیتابیس موجود با `KeyError: 'requires_device'`
+می‌شکست (کلید در helper `_bot_api` نبود). هم کلید اضافه شد، هم `seed_apps` نسبت به کلیدهای
+اختیاری مقاوم شد و تست idempotent برای re-seed اضافه شد.
+
+## قدم ۱۰ — کانال‌های ورودی (وبهوک تلگرام/واتساپ) ✔
+
+**ساخته شد (بک‌اند):** `db/models/inbound.py`، مایگریشن `0012_inbound.py`،
+`runtime/inbound.py`، `api/v1/inbound.py` (۸ مسیر)
+
+- **کانال = پل وبهوک به ایجنت**: `inbound_channels` با `slug` یکتای سراسری، ایجنت، ابزار پاسخ
+  و `reply_mode` (`off|auto`). کلید وبهوک با AES‑GCM و AAD `inbound:<slug>` رمز می‌شود.
+- **تأیید امضا**: تلگرام `X-Telegram-Bot-Api-Secret-Token`، واتساپ HMAC‑SHA256 روی بدنه‌ی خام
+  (`X-Hub-Signature-256`) + هندشیک GET با `hub.verify_token`/`hub.challenge`.
+- **ضد تکرار**: یکتایی `(channel_id, external_id)` روی `tg:<update_id>` / `wa:<message id>`؛
+  تحویل تکراری `duplicate` برمی‌گرداند و اجرای دوم ساخته نمی‌شود.
+- **هر پیام = یک اجرا** با `trigger="webhook"` (بودجه، تأیید، هزینه و سیاست ابزار دست‌نخورده)،
+  و رویداد در `inbound_events` با `run_id` ثبت می‌شود.
+- **پاسخ خودکار**: با `reply_mode=auto` و اجرای موفق، پاسخ از همان ابزار برنامه (تلگرام/واتساپ)
+  ارسال و در `tool_invocations` ثبت می‌شود؛ اگر اجرا در `waiting_approval` پارک شود، پاسخی
+  فرستاده نمی‌شود (تأیید انسانی).
+- **پنل**: مسیر `/channels` با ساخت کانال، آدرس وبهوک قابل کپی، فعال/غیرفعال، حذف و جدول
+  رویدادها.
+
+**شاهد:** `tests/test_inbound.py` با ۱۴ تست (ساخت کانال و پوشاندن secret، الزام verify token،
+ناسازگاری ابزار/پیام‌رسان، ابزار سفارشی بدون `app_slug`، RBAC، امضای غلط ۴۰۱، تحویل تکراری،
+اجرای یکتا، پیام غیرمتنی، کانال غیرفعال، هندشیک و امضای واتساپ، **اجرای کامل ایجنت + ارسال
+پاسخ واقعی** با respx، و ثبت `failed` وقتی پیام‌رسان ۵xx می‌دهد) + تست رگرسیون قفل زمان‌بند در
+`tests/test_scheduler.py`؛ `216 passed`→`231 passed` در کل مجموعه.
+
+**رفع باگ‌ها در مسیر:**
+۱) تلگرام/بله/ایتا/روبیکا فیلد «chat_id پیش‌فرض» را به‌عنوان اعتبارنامه‌ی نصب داشتند و همان
+`{{chat_id}}` را در قالب config از پیش پر می‌کرد؛ نتیجه این بود که پاسخ خودکار به‌جای فرستنده‌ی
+واقعی به چت پیش‌فرض می‌رفت. آن اعتبارنامه حذف شد (توکن کافی است) و `{{chat_id}}` یک ورودی
+زمان‌اجراست.
+۲) پس از `IntegrityError` در dedupe، نشست بدون `rollback` مانده بود و پاسخ ۵۰۰ می‌شد.
+۳) **باگ جدی در زمان‌بند (قدم ۸):** اتصال نگه‌دارنده‌ی advisory lock فقط در یک متغیر محلی بود؛
+با GC شدن آن، قفل **بی‌صدا آزاد** می‌شد و «تک‌مجرا بودن» از بین می‌رفت (احتمال اجرای تکراری با
+دو worker). حالا در `_lock_connection` زنده نگه داشته و در shutdown آزاد می‌شود؛ تست رگرسیون +
+اثبات زنده: نمونه‌ی دوم `another scheduler holds the lock; exiting` می‌دهد.
+۴) اگر پیام‌رسان ۵xx برمی‌گرداند، `reply_status` قبلاً `sent` ثبت می‌شد (چون ابزار HTTP خطا
+پرتاب نمی‌کند)؛ حالا `ok=false` → `failed`.
+۵) ابزار پاسخ سفارشی که `config.app_slug` ندارد رد می‌شد؛ حالا فقط **ناسازگاری** رد می‌شود
+(ابزار سفارشی مجاز است).
+۶) `deliver_reply` حالا `run_id` را به `execute_tool` می‌دهد تا invocation به همان اجرا وصل باشد.
+
+**اثبات زنده (غیر mock):** پیام واقعی روی کانال تلگرام → ران اجرا شد → پاسخ از ابزار
+`demo.local_reply` به `POST /echo` روی `127.0.0.1:8020` رفت → `status: ok`, `http 200`,
+`args = {"chat_id": "777", "text": "سلام! این پاسخ پروایدر آزمایشی است."}` و رویداد با
+`reply=sent` ثبت شد.
+
+## قدم ۹ — «برنامه‌ها»: کاتالوگ اتصال با آیکون برند ✔
+
+**ساخته شد (بک‌اند):** `db/models/apps.py`، مایگریشن `0011_apps.py`، `seeding/apps_seed.py`
+(۲۵ برنامه)، `api/v1/apps.py` (۷ مسیر)، `POST /v1/tools/{id}/clone`
+
+- **کاتالوگ داده‌محور**: هر برنامه یک ردیف `app_catalog` است (آیکون، رنگ برند، runtime،
+  قالب `config`/`actions`، `credentials` ویزارد، `detect`، پیش‌نیازها). افزودن برنامه‌ی
+  جدید = یک ردیف دیتابیس، بدون کد.
+- **نصب = کپی قالب**: `POST /v1/apps/{slug}/install` یک `tools` سازمانی با slug
+  `<app>.<agent8>` می‌سازد (یا به‌روزرسانی می‌کند)، اعتبارنامه را رمزنگاری می‌کند و
+  `agent_tools` را با `permission_level` می‌نویسد.
+- **برنامه‌های دسکتاپ**: فقط روی دستگاه آنلاین نصب می‌شوند و باید در `device_tools` شناسایی
+  شده باشند (`force=true` برای رد کردن بررسی تشخیص).
+- **کشف برنامه‌های دستگاه**: `POST /v1/devices/{id}/scan-apps` → پیام `apps.scan` روی WSS →
+  کانکتور با `psutil`/`tasklist`، `HKCR\<prog_id>` و مسیر `Program Files` تشخیص می‌دهد →
+  `apps.result` → تطبیق با `detect` و ذخیره در `device_tools` (+ مجوز `is_granted`).
+- **۷ عملیات تازه** برای کنترل برنامه‌ها: `app.launch`, `app.focus`, `app.windows`,
+  `ui.invoke`, `clipboard.set/get`, `keyboard.hotkey` (کاتالوگ ۱۷ → ۲۴).
+- **پنل**: مسیر `/apps` با کارت‌های لوگودار و فیلتر دسته، ویزارد اتصال (ایجنت → دستگاه →
+  توکن/شناسه → سطح دسترسی)، «افزودن ابزار من» (HTTP سفارشی یا اسکریپت دستگاه)، کارت
+  «برنامه‌ها و شبکه‌ها» در صفحه‌ی ایجنت، و کارت «برنامه‌های دستگاه» با اسکن و مجوز در `/devices`.
+
+**رفع باگ‌های قبلی در همین قدم:** نمایش ابزارهای غیرفعال در `/tools` (`enabled_only=false`)،
+و امکان ویرایش ابزارهای سراسری با `POST /tools/{id}/clone` (پیش‌تر `tool.global_readonly`
+راه فرار نداشت). `category` ابزارها دو مقدار `productivity` و `devices` گرفت.
+
+**شاهد:** `tests/test_apps_api.py` با ۱۴ تست (seed و آیکون‌ها، فیلترها، نصب/به‌روزرسانی/حذف،
+اعتبارسنجی اعتبارنامه و دستگاه، اسکن و تطبیق exe، مجوز، clone، دیدن ابزار در `llm-schemas`)؛
+`npx tsc --noEmit` و `npm run build` پنل پاک؛ `ruff` پاک.
+
+**باگ‌های رفع‌شده در مسیر:**
+۱) `created_at`/`updated_at` جدول تازه بدون `server_default` ساخته شده بود → seed با
+`NotNullViolation` می‌شکست.
+۲) `simple-icons` دیگر لوگوی LinkedIn و Slack را ندارد → کلید آیکون `mono:in` و
+`lucide:hash` گذاشته شد و کامپوننت `app-icons.tsx` برای هر کلید ناشناس، مونوگرام رنگی می‌سازد.
+۳) seed کاتالوگ، ردیف‌های موجود را هم به‌روزرسانی می‌کند تا اصلاح آیکون/متن/قالب به نصب‌های
+موجود هم برسد.
+
+## قدم ۸ — زمان‌بند cron ✔
+
+**ساخته شد (بک‌اند):** `runtime/cron.py`، `runtime/starter.py`، `workers/scheduler.py`،
+`POST /v1/agents/{id}/tasks/{task_id}/run`، فیلد محاسبه‌شده `next_run_at`
+
+- **پارسر cron بدون وابستگی**: `*`, `*/n`, `a-b`, `a-b/n`, `a/n`, لیست، نام روز/ماه (`sat`, `jan`)؛
+  معناشناسی POSIX برای روز-ماه/روز-هفته؛ منطقه‌ی زمانی `Asia/Tehran`؛ خطا با `CronError`.
+- **worker مستقل**: `python -m app.workers.scheduler` — قفل advisory پستگرس (تک‌مجرا)،
+  claim اتمیک روی `last_run_at` (ضد اجرای تکراری)، رد کردن وظیفه‌ای که اجرای فعال دارد،
+  سقف هم‌زمانی، اجرا با همان موتور/دفتر مصرف/تأیید انسانی.
+- **اجرای فوری**: `POST .../tasks/{id}/run` با همان `prepare_task_run` (trigger=`task`).
+- **تأیید در سطح وظیفه**: وظیفه‌ی `requires_approval` به‌جای اجرا در `waiting_approval` پارک
+  می‌شود و `/runs/{id}/approve` آن را با همان متن وظیفه اجرا می‌کند.
+- **پنل**: کارت «وظایف و زمان‌بندی» با ستون‌های اجرای بعدی/آخرین اجرا، ویرایش cron،
+  فعال/غیرفعال، «اجرای فوری» و نمایش نتیجه.
+
+**شاهد:** `202 passed` (۱۱ تست cron + ۷ تست زمان‌بند) و `ruff` پاک؛ `next_run_at` برای
+`0 8 * * *` در پاسخ API برمی‌گردد؛ در تست، `tick` در یک دقیقه فقط یک اجرا می‌سازد و اجرای
+تکراری همان دقیقه صفر اجرا برمی‌گرداند.
+
+**شاهد زنده (اجرای واقعی روی همین ماشین):** با `fake_provider` + API + پنل:
+
+- ساخت وظیفه‌ی `* * * * *` از پنل → پاسخ `next_run_at: 2026-11-09T18:01:00Z` (۲۱:۳۱ تهران).
+- «اجرای فوری» → `200`، اجرا با `trigger=task`، `task_id` پر، `cost_irr=105`، وضعیت `completed`.
+- دو `tick` پشت‌سرهم: `tick1 1` و `tick2 0` → بدون اجرای تکراری؛ اجرای زمان‌بندی‌شده هم
+  `trigger=task` و `completed` ثبت شد.
+
+**باگ‌های رفع‌شده:**
+۱) نگاشت نام روزهای هفته با ایندکس اشتباه (۶ به‌جای ۴) → همه‌ی `mon..sun` ها خطا می‌دادند.
+۲) تست‌های بدون `@respx.mock` سینک مدل را واقعاً به DNS می‌فرستادند (`getaddrinfo failed`).
+۳) اگر نرخ ارز هم در دیتابیس و هم در env صفر بود، `cost_irr` بی‌صدا صفر ثبت می‌شد
+   (`cost_usd=0.0001045` ولی `cost_irr=0`) → هشدار سرخ در داشبورد و صفحه‌ی مصرف + مستند
+   شدن `APP_FX_USD_IRR` در `install.md`.
+۴) نام وظیفه با `Invoke-RestMethod` در ویندوز mojibake می‌شد؛ در اسکریپت‌های تست باید
+   بدنه‌ی UTF-8 صریح فرستاد (اشکال ابزار تست، نه محصول).
+
+## قدم ۷ — API تکمیلی پنل + فرانت‌اند فارسی ✔
+
+**ساخته شد (بک‌اند):** `api/v1/usage.py`، `api/v1/users.py`، `api/v1/settings.py`،
+`billing/fx.py`، `schemas/{usage,users,settings}.py`
+
+- `GET /v1/usage/summary` — تجمیع مصرف: بازه، totals، به‌تفکیک روز/ایجنت/مدل، شمارش وضعیت اجراها، بودجه و دستگاه‌های آنلاین
+- `GET /v1/usage/export.xlsx` — شیت RTL، سرصفحه‌ی فارسی، تاریخ جلالی، فرمت عددی واقعی (openpyxl)
+- `GET/POST/PATCH/DELETE /v1/users` + `POST /v1/users/{id}/reset-password` — نقش‌ها، منع
+  escalate غیرمالک، غیرفعال‌سازی به‌جای حذف، باطل‌کردن نشست‌ها با تغییر رمز
+- `GET/PATCH /v1/settings`, `/settings/org`, `/settings/me`, `/settings/fx` — نرخ ارز از دیتابیس
+  خوانده می‌شود (`billing/fx.py`) و موتور اجرا/پروب مدل از همان استفاده می‌کنند
+
+**ساخته شد (فرانت):** `apps/web` — Next.js 15 + TS + Tailwind (RTL) با ۱۶ مسیر:
+`/login`, `/`, `/playground`, `/agents`, `/agents/[id]`, `/providers`, `/models`, `/prompts`,
+`/tools`, `/devices`, `/runs`, `/runs/[id]`, `/usage`, `/users`, `/settings` + BFF
+
+- JWT فقط در کوکی `httpOnly`؛ پروکسی `/api/[...path]` رفرش خودکار و عبور SSE بدون بافر
+- تمام متن‌ها از `lib/copy.ts` و نقشه‌ی «کد خطا → جمله‌ی فارسی» (`lib/errors-fa.ts`)
+- تبدیل جلالی و ارقام فارسی سمت کلاینت (`lib/format.ts`)؛ مبالغ ریال ذخیره، تومان نمایش
+- آزمایشگاه با استریم زنده و کارت تأیید انسانی روی `run.waiting_approval`
+
+**شاهد:** `184 passed` در بک‌اند + `ruff` پاک؛ `npm run build` با ۱۶ مسیر و typecheck پاک؛
+ورود واقعی و رندر داشبورد/پروایدر/مدل/ایجنت/آزمایشگاه با کد ۲۰۰ از سرور production.
+
+**باگ‌های رفع‌شده:**
+۱) `app_settings.fx` با مقدار صفر seed می‌شد و نرخ واقعی را می‌بلعید → صفر = «تنظیم‌نشده» و fallback به env.
+۲) برچسب `format_irr` «تومان» بود ولی مقدار ریال → واحد «ریال» شد و UI تومان می‌سازد.
+۳) کوکی `secure` در production روی HTTP self-host از کار می‌افتاد → از پروتکل درخواست تبعیت می‌کند.
+۴) import شدن `next/headers` در زنجیره‌ی کلاینت (build می‌شکست) → جداسازی `lib/api-server.ts`.
+
+## قدم ۶ — کانکتور دسکتاپ ✔
+
+**ساخته شد:** `app/connector/{hub,pairing,executor}.py`، `api/v1/devices.py`،
+`api/v1/connector_ws.py`، `scripts/connector_client.py`، `scripts/demo_connector_flow.py`
+
+- جفت‌سازی با کد ۸ کاراکتری (۱۰ دقیقه) + توکن دستگاه
+- کانال WebSocket خروجی + `hello/manifest/progress/result`
+- اجرای اسکریپت اقدام با جایگذاری `{{input.x}}` و `{{run_id}}`
+- لایه‌ی ایمنی دوطرفه: `allowed_paths` و allowlist فرمان
+
+**شاهد:** نوشتن فایل واقعی `گزارش فروش آبان ۱۴۰۵` روی دیسک از طریق ابزار، و بلاک شدن
+`C:\Windows\System32\evil.txt` با `PermissionError`؛ `168 passed`؛ ۱۵ عملیات اعلام‌شده توسط دستگاه.
+
+**باگ‌های رفع‌شده:** ۱) مرگ کد قدیمی `tool.device_unavailable` → `tool.device_offline`؛
+۲) یک فایل تست به‌خاطر تبدیل رمزگذاری PowerShell خراب شد و بازنویسی شد.
+
+## قدم ۵ — اجرای ایجنت ✔
+
+**ساخته شد:** `app/runtime/{engine,events,budget,tools_binding}.py`، `api/v1/runs.py`،
+`schemas/runs.py`، مایگریشن `0010` (`runs.state`, `runs.steps_taken`)
+
+- حلقه‌ی tool-calling با حداکثر ۸ گام، استریم SSE، بودجه‌ی ماه جلالی
+- توقف برای تأیید انسانی و ادامه از همان نقطه
+- ثبت هزینه‌ی دلار و تومان در `usage_ledger`
+- ابزارها: ورودی tool-call در پیام‌های مدل حفظ می‌شود
+
+**شاهد:** `run.completed` با `steps=2`, `cost_irr=141`؛ `waiting_approval` → `approve` →
+`completed`؛ `159 passed`.
+
+**باگ‌های رفع‌شده:** ۱) `SET LOCAL` بعد از commit پاک می‌شد و RLS کوئری بعدی را می‌بست؛
+۲) `state` (JSONB) با اختصاص همان dict ذخیره نمی‌شد (`flag_modified`)؛
+۳) موتور نباید از session درخواست استفاده کند (خطای `MissingGreenlet`).
+
+## قدم ۴ — رجیستری ابزار ✔
+
+**ساخته شد:** `app/tools/{names,schema,policy,actions,net,secrets,builtin,http_exec,mcp,service}.py`،
+`api/v1/tools.py`، `schemas/tools.py`، مایگریشن `0009` (اعتبارنامه‌ی رمزی ابزار)
+
+- چهار نوع ابزار + اعتبارسنجی JSON Schema + ماتریس ریسک
+- ابزار HTTP توصیفی (template/auth/response_map/allowlist) و کلاینت MCP
+- اسکریپت اقدام با ۱۷ عملیات + کاتالوگ فارسی
+- آزمون ابزار و «آنچه مدل می‌بیند»
+
+**شاهد:** ۴۱ تست ابزار؛ `tool.invalid_header` و `tool.domain_not_allowed` کشف و پیاده شد.
+
+**باگ‌های رفع‌شده:** ۱) هدر غیر‑ASCII باعث کرش می‌شد؛ ۲) لاگ خطای ابزار با rollback
+درخواست پاک می‌شد (الآن تراکنش جدا)؛ ۳) شناسه‌ی تکراری در اتصال ابزار خطای ۵۰۰ می‌داد.
+
+## قدم ۳ — پرامپت و ایجنت ✔
+
+**ساخته شد:** `app/prompts/{render,service}.py`، `app/agents/{workflow,service}.py`،
+`app/core/jalali.py`، `api/v1/{prompts,agents}.py`، ۴ پرامپت نقش جدید (حسابدار/فروشنده/منشی/گزارش)
+
+- نسخه‌بندی، انتشار، بازگشت افزودنی، اولویت سازمان بر سراسری
+- تبدیل تقویم جلالی (بدون وابستگی) + `{{today_jalali}}` با ارقام فارسی
+- وظایف با اعتبارسنجی cron و گراف جریان (داده + اعتبارسنجی)
+
+**شاهد:** «۱۸ آبان ۱۴۰۵» در پرامپت مؤثر؛ v1→v2→v3 با یادداشت «بازگشت به نسخه 1»؛ `110 passed`.
+
+## قدم ۲ — پروایدر و مدل ✔
+
+**ساخته شد:** `app/providers/*` (آداپتورهای بومی OpenAI/Anthropic/Gemini + declarative)،
+`app/billing/cost.py`، `api/v1/{providers,models}.py`، `scripts/fake_provider.py`
+
+- کشف مدل/قیمت، استنتاج قابلیت از قواعد DB، تاریخچه‌ی قیمت، قیمت دستی
+- استریم بومی با httpx و fallback بین پروایدرها
+
+**شاهد:** `sync-models created=3`، `sync-prices updated=2`، probe با `cost_irr=16`؛ `76 passed`.
+
+**تصمیم‌های مهم:** حذف `litellm` از مسیر داغ (ایمپورت ۳۹ ثانیه) و `trust_env=False`.
+
+## قدم ۱ — بک‌اند و اسکیما ✔
+
+**ساخته شد:** ۳۹ جدول در ۱۰ مایگریشن + RLS + احراز هویت + متن/اعداد فارسی +
+`/healthz` و `/v1/meta`، پورت درگاه پرداخت (noop)
+
+**شاهد:** `downgrade base` → `upgrade head` بدون خطا؛ ۱۷ جدول RLS با `FORCE`؛ `55 passed`.
+
+**محیط:** PostgreSQL 16.2 تعبیه‌شده (`pgserver`) بدون نصب/ادمین؛ نقش غیرسوپریوزر برای اپ.
+
+## وضعیت کلی پس از شش قدم
+
+| سنجه | مقدار |
+|---|---|
+| جداول | ۳۹ |
+| مایگریشن | ۱۱ |
+| عملیات API | ۷۲ (+۱ WebSocket) |
+| تست | ۱۶۸ |
+| پرامپت پیش‌فرض | ۱۳ |
+| دموی آماده | ۵ |
