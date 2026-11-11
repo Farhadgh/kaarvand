@@ -81,6 +81,9 @@ export interface Model {
   output_price: string | null;
   cached_input_price: string | null;
   image_price: string | null;
+  audio_input_price: string | null;
+  audio_output_price: string | null;
+  audio_kind: "stt" | "tts" | null;
   price_currency: string;
   price_source: string | null;
   price_synced_at: string | null;

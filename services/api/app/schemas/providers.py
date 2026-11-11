@@ -119,6 +119,7 @@ class ModelOut(ORMModel):
     image_price: Decimal | None
     audio_input_price: Decimal | None = None
     audio_output_price: Decimal | None = None
+    audio_kind: str | None = None
     price_currency: str
     price_source: str | None
     price_synced_at: Any | None

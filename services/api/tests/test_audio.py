@@ -350,4 +350,39 @@ async def test_audio_models_filter(
     assert rows and all(row["kind"] == kind_filter for row in rows)
 
 
+async def test_catalog_models_expose_audio_kind_and_price(
+    client: Any, auth_headers: dict[str, str]
+) -> None:
+    """`GET /v1/models` (the panel's model list) must show audio ability, not just tools/vision."""
+    provider = await make_provider(client, auth_headers)
+    stt = await add_model(client, auth_headers, provider["id"], external_id="whisper-1")
+    tts = await add_model(
+        client,
+        auth_headers,
+        provider["id"],
+        external_id="tts-1",
+        audio_kind="tts",
+        audio_input_price=None,
+        audio_output_price="0.015",
+    )
+
+    rows = {
+        row["id"]: row
+        for row in (await client.get("/v1/models", headers=auth_headers)).json()
+    }
+    assert rows[stt["id"]]["audio_kind"] == "stt"
+    assert rows[stt["id"]]["supports_audio"] is True
+    assert Decimal(rows[stt["id"]]["audio_input_price"]) == Decimal("0.006")
+    assert rows[tts["id"]]["audio_kind"] == "tts"
+    assert Decimal(rows[tts["id"]]["audio_output_price"]) == Decimal("0.015")
+
+    audio_only = (
+        await client.get(
+            "/v1/models", headers=auth_headers, params={"capability": "audio"}
+        )
+    ).json()
+    assert {row["id"] for row in audio_only} >= {stt["id"], tts["id"]}
+
+
+
 

@@ -403,7 +403,7 @@ function TtsPanel({
   );
 }
 
-function AddModelCard({
+export function AddModelCard({
   presets,
   providers,
   canEdit,

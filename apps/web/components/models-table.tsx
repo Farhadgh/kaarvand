@@ -1,22 +1,36 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { AddModelCard } from "@/components/audio-client";
 import { Badge, ErrorBox } from "@/components/ui";
 import { clientFetch, messageOf } from "@/lib/api";
 import { formatMoney, formatNumber } from "@/lib/format";
-import type { Model } from "@/lib/types";
+import type { AudioPreset, Model, Provider } from "@/lib/types";
 
 type Probe = { text: string; tokens_in: number; tokens_out: number; cost_irr: number };
+
+/** `0.0060000000` -> `0.006 $/دقیقه` (STT) or `0.015 $/۱k نویسه` (TTS). */
+function audioPriceLabel(model: Model): string {
+  const clean = (value: string | null) => (value === null ? "—" : String(Number(value)));
+  if (model.audio_kind === "stt") return `${clean(model.audio_input_price)} $/دقیقه`;
+  if (model.audio_kind === "tts") return `${clean(model.audio_output_price)} $/۱k نویسه`;
+  return "قیمت‌گذاری نشده";
+}
 
 export function ModelsTable({
   models,
   providerNames,
+  presets,
+  providers,
   canEdit,
 }: {
   models: Model[];
   providerNames: Record<string, string>;
+  presets: AudioPreset[];
+  providers: Provider[];
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -24,6 +38,7 @@ export function ModelsTable({
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [capability, setCapability] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
   const [probe, setProbe] = useState<{ model: string; result: Probe } | null>(null);
 
   const filtered = models.filter((model) => {
@@ -92,10 +107,25 @@ export function ModelsTable({
           <option value="">همه‌ی قابلیت‌ها</option>
           <option value="tools">فراخوانی ابزار</option>
           <option value="vision">بینایی</option>
+          <option value="audio">صوتی (گفتار ↔ متن)</option>
           <option value="reasoning">استدلال</option>
+          <option value="stream">استریم</option>
         </select>
         <span className="muted">{formatNumber(filtered.length)} مدل</span>
+        {canEdit ? (
+          <button
+            type="button"
+            className="btn-ghost !px-3 !py-1.5 text-xs"
+            onClick={() => setShowAdd((value) => !value)}
+          >
+            {showAdd ? "بستن فرم" : "+ افزودن مدل صوتی"}
+          </button>
+        ) : null}
       </div>
+
+      {showAdd ? (
+        <AddModelCard presets={presets} providers={providers} canEdit={canEdit} />
+      ) : null}
 
       <div className="table-wrapper">
         <table className="w-full">
@@ -106,6 +136,7 @@ export function ModelsTable({
               <th className="th">قابلیت</th>
               <th className="th">ورودی</th>
               <th className="th">خروجی</th>
+              <th className="th">صوتی</th>
               <th className="th">وضعیت</th>
               <th className="th">آزمایش</th>
             </tr>
@@ -113,7 +144,7 @@ export function ModelsTable({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td className="td text-center text-ink-500" colSpan={7}>
+                <td className="td text-center text-ink-500" colSpan={8}>
                   مدلی یافت نشد. ابتدا پروایدر را سینک کنید.
                 </td>
               </tr>
@@ -133,11 +164,24 @@ export function ModelsTable({
                     <div className="flex flex-wrap gap-1">
                       {model.supports_tools ? <Badge value="low" label="ابزار" /> : null}
                       {model.supports_vision ? <Badge value="low" label="بینایی" /> : null}
+                      {model.supports_audio ? (
+                        <Badge
+                          value="medium"
+                          label={model.audio_kind === "stt" ? "صوتی · گفتار→متن" : model.audio_kind === "tts" ? "صوتی · متن→گفتار" : "صوتی"}
+                        />
+                      ) : null}
                       {model.supports_reasoning ? <Badge value="low" label="استدلال" /> : null}
                     </div>
                   </td>
                   <td className="td ltr text-xs">{model.input_price ?? "—"}</td>
                   <td className="td ltr text-xs">{model.output_price ?? "—"}</td>
+                  <td className="td text-xs">
+                    {model.supports_audio ? (
+                      <span className="ltr">{audioPriceLabel(model)}</span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="td">
                     <button
                       className="btn-ghost !px-2 !py-1 text-xs"
@@ -155,13 +199,19 @@ export function ModelsTable({
                     </button>
                   </td>
                   <td className="td">
-                    <button
-                      className="btn-ghost !px-2 !py-1 text-xs"
-                      disabled={!canEdit || busy === `probe-${model.id}`}
-                      onClick={() => void runProbe(model)}
-                    >
-                      {busy === `probe-${model.id}` ? "…" : "اجرا"}
-                    </button>
+                    {model.supports_audio ? (
+                      <Link className="btn-ghost !px-2 !py-1 text-xs" href="/audio">
+                        آزمایش صدا
+                      </Link>
+                    ) : (
+                      <button
+                        className="btn-ghost !px-2 !py-1 text-xs"
+                        disabled={!canEdit || busy === `probe-${model.id}`}
+                        onClick={() => void runProbe(model)}
+                      >
+                        {busy === `probe-${model.id}` ? "…" : "اجرا"}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

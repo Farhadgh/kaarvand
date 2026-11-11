@@ -3,14 +3,15 @@ import Link from "next/link";
 import { ModelsTable } from "@/components/models-table";
 import { Card, EmptyState } from "@/components/ui";
 import { serverFetch } from "@/lib/api-server";
-import type { Model, Provider, User } from "@/lib/types";
+import type { AudioPreset, Model, Provider, User } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function ModelsPage() {
-  const [models, providers, me] = await Promise.all([
+  const [models, providers, presets, me] = await Promise.all([
     serverFetch<Model[]>("/models?enabled_only=false&limit=500"),
     serverFetch<Provider[]>("/providers"),
+    serverFetch<AudioPreset[]>("/audio/presets").catch(() => [] as AudioPreset[]),
     serverFetch<User>("/auth/me"),
   ]);
 
@@ -44,6 +45,8 @@ export default async function ModelsPage() {
       <ModelsTable
         models={models}
         providerNames={providerNames}
+        presets={presets}
+        providers={providers}
         canEdit={me.role === "owner" || me.role === "admin"}
       />
     </div>

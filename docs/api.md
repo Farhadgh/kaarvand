@@ -423,7 +423,8 @@ POST /v1/channels
 |---|---|---|---|
 | GET | `/audio/meta` | همه | محدودیت‌ها: `max_upload_mb`, `max_tts_chars`, `voices`, `formats` |
 | GET | `/audio/presets` | همه | فهرست مدل‌های آماده (whisper-1، tts-1، gpt-4o-mini-tts …) |
-| GET | `/audio/models?kind=stt\|tts` | همه | مدل‌های صوتی فعال سازمان |
+| GET | `/audio/models?kind=stt\|tts` | همه | فهرست اختصاصی مدل‌های صوتی (صفحهٔ `/audio`) |
+| GET | `/models?capability=audio` | همه | همان فهرست مدل‌ها با `audio_kind` و قیمت صوتی (صفحهٔ `/models`) |
 | POST | `/audio/transcriptions` | operator | `multipart/form-data`: `file`, `model_id`, `language?`, `prompt?` |
 | POST | `/audio/speech` | operator | JSON: `model_id`, `text` (≤ ۴۰۰۰), `voice`, `format`, `speed?` → فایل صوتی |
 | GET | `/audio/speech/estimate` | همه | برآورد هزینه بدون فراخوانی پروایدر |

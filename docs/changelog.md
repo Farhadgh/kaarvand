@@ -16,7 +16,8 @@
 | `audio/service.py` | تفکیک STT/TTS، سقف حجم/طول، بودجه، ثبت در ledger |
 | `audio/presets.py` | ۶ مدل آماده با قیمت رسمی (whisper-1، gpt-4o-transcribe، tts-1، …) |
 | `api/v1/audio.py` | ۶ مسیر: `meta`, `presets`, `models`, `transcriptions`, `speech`, `speech/estimate` |
-| `api/v1/models.py` | `POST /models` و `DELETE /models/{id}` برای افزودن دستی مدل صوتی |
+| `api/v1/models.py` | `POST /models` و `DELETE /models/{id}` برای افزودن دستی مدل صوتی؛ `ModelOut` حالا `audio_kind` و قیمت‌های صوتی را هم برمی‌گرداند |
+| `apps/web` (صفحهٔ مدل‌ها) | فیلتر «صوتی» + نشان «صوتی · گفتار→متن / متن→گفتار» + ستون قیمت صوتی + دکمهٔ «افزودن مدل صوتی» در همان جدول |
 | `apps/web` | مسیر **`/audio`** («صدا و گفتار») + پروکسی دودویی `/api/audio/transcriptions` |
 | `seeding/catalog.py` | مدل‌های صوتی دیگر `supports_tools`/`stream` نمی‌گیرند |
 | `scripts/fake_provider.py` | endpointهای صوتی برای تست محلی |

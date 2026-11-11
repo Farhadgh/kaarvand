@@ -46,6 +46,21 @@ async def get_model(db: AsyncSession, user: User, model_id: uuid.UUID) -> Model:
     return model
 
 
+def audio_kind_of(model: Model) -> str | None:
+    """``stt``/``tts`` for speech models (explicit meta first, then the model id)."""
+    if not model.supports_audio:
+        return None
+    from app.audio.service import infer_kind
+
+    return infer_kind(model.external_id, model.meta)
+
+
+def model_out(model: Model) -> ModelOut:
+    out = ModelOut.model_validate(model)
+    out.audio_kind = audio_kind_of(model)
+    return out
+
+
 @router.get("/models", response_model=list[ModelOut])
 async def list_models(
     provider_id: uuid.UUID | None = None,
@@ -88,7 +103,7 @@ async def list_models(
 
     stmt = stmt.order_by(Model.family, Model.external_id).limit(limit).offset(offset)
     rows = (await db.execute(stmt)).scalars().all()
-    return [ModelOut.model_validate(row) for row in rows]
+    return [model_out(row) for row in rows]
 
 
 @router.get("/models/{model_id}", response_model=ModelOut)
@@ -97,7 +112,7 @@ async def read_model(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> ModelOut:
-    return ModelOut.model_validate(await get_model(db, user, model_id))
+    return model_out(await get_model(db, user, model_id))
 
 
 @router.patch("/models/{model_id}", response_model=ModelOut)
@@ -111,7 +126,7 @@ async def update_model(
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(model, key, value)
     await db.flush()
-    return ModelOut.model_validate(model)
+    return model_out(model)
 
 
 @router.post("/models/{model_id}/price", response_model=PriceHistoryOut)
@@ -188,7 +203,7 @@ async def create_model(
     )
     db.add(model)
     await db.flush()
-    return ModelOut.model_validate(model)
+    return model_out(model)
 
 
 @router.delete("/models/{model_id}", status_code=204)
