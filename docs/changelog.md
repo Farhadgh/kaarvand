@@ -2,6 +2,36 @@
 
 هر قدم با «شاهد» ثبت شده است؛ یعنی چیزی که واقعاً اجرا شده، نه ادعا.
 
+## قدم ۱۳ — استقرار روی سرور (https://kaarvand.amigok.cloud) ✔
+
+**انجام شد:** نصب کامل روی همان VPS که اپ دیگری (`Amigook`) را سرو می‌کند، بدون دست‌زدن به آن.
+
+| مورد | مقدار |
+|---|---|
+| کد | `/opt/kaarvand` (git، commit `da3ee50`) با کاربر `kaarvand` |
+| دیتابیس | `kaarvand` + نقش `kaarvand_app` + `pgvector` |
+| سرویس‌ها | `kaarvand-api` (8100) · `kaarvand-web` (3100) · `kaarvand-scheduler` |
+| وب‌سرور | nginx vhost + **Let's Encrypt** (ریدایرکت HTTP→HTTPS) |
+| اجرا | `alembic upgrade head` + seed (ادمین `admin@kaarvand.amigok.cloud`) + build پنل |
+
+**شاهد زنده:**
+- `https://kaarvand.amigok.cloud/healthz` → `{"status":"ok","db":"ok"}`
+- `https://kaarvand.amigok.cloud/v1/meta` → `app_name=کاروند`, `env=prod`
+- ورود پنل از طریق HTTPS/BFF → `200` (نقش owner) و صفحات `/apps` `/channels` `/runs` `/tools` → `200`
+- `http://` → `301` به `https://`
+- سایت‌های قبلی سرور (`amigok.cloud`, `admin.amigok.cloud`) → `301` و سالم
+
+**پنج باگ واقعی که استقرار لو داد و رفع شد:**
+۱) `openpyxl` در dependencies نبود → خروجی اکسل روی نصب تازه ۵۰۰ می‌داد.
+۲) `jsonschema` در dependencies نبود → API اصلاً import نمی‌شد.
+۳) `pip install -e .` با layout مسطح شکست می‌خورد → `[build-system]` و
+`[tool.setuptools.packages.find]` اضافه شد.
+۴) `APP_ENV` **بی‌اثر** بود: با پیشوند `APP_`، نام درست `APP_APP_ENV` است؛ `.env.example`،
+`docs/install.md` و `conftest.py` اصلاح شدند.
+۵) مقدار `test` در `Literal` فیلد `app_env` نبود → مسیر NullPool تست‌ها مرده بود؛ اضافه شد.
+
+**مستندات:** [deploy.md](deploy.md) (چیدمان، به‌روزرسانی، بکاپ، TLS، عیب‌یابی).
+
 ## قدم ۱۲ — تغییر برند به «کاروند» (Kaarvand) ✔
 
 **تغییرات:**
