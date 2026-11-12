@@ -282,7 +282,11 @@ async def test_sync_discovers_speech_models_and_audio_prices(
     assert chat["supports_stream"] is True
 
     audio_only = (
-        await client.get("/v1/models", params={"capability": "audio"}, headers=auth_headers)
+        await client.get(
+            "/v1/models",
+            params={"capability": "audio", "provider_id": provider["id"]},
+            headers=auth_headers,
+        )
     ).json()
     assert {model["external_id"] for model in audio_only} == {
         "openai/whisper-1",
