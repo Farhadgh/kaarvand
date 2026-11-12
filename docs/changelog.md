@@ -2,6 +2,41 @@
 
 هر قدم با «شاهد» ثبت شده است؛ یعنی چیزی که واقعاً اجرا شده، نه ادعا.
 
+## کشف مدل‌های صوتی از کاتالوگ پروایدر (OpenRouter) ✔
+
+**مسئله:** در OpenRouter با فیلتر `input_modalities=audio` ده‌ها مدل صوتی دیده می‌شد ولی
+کاروند فقط ۱ مدل صوتی نشان می‌داد. علت سه‌لایه بود:
+
+1. کاتالوگ، نوع مدل را از **قیمت** (`audio_input_price`/`audio_output_price`) و پرچم
+   `supports_audio` می‌گرفت؛ سینک هیچ‌کدام را ست نمی‌کرد.
+2. OpenRouter در فهرست پیش‌فرض `/api/v1/models` برای مدل‌های گفتاری `architecture` را `null`
+   می‌دهد؛ فقط `?output_modalities=transcription|speech` آن‌ها را با معماری و قیمت برمی‌گرداند.
+3. آداپتور، `openrouter` را پروایدر صوتی نمی‌شناخت و رونویسی multipart می‌فرستاد (OpenRouter
+   JSON + base64 می‌خواهد).
+
+| فایل | تغییر |
+|---|---|
+| `providers/adapters/litellm_endpoints.py` | `audio_kind` از `architecture.output_modalities` (transcription→stt، speech→tts) |
+| `providers/adapters/litellm_catalog.py` | خواندن دو فهرست فیلترشده برای openrouter و ادغام آن‌ها؛ تبدیل قیمت «بر ثانیه»→«بر دقیقه» (×۶۰) و «بر نویسه»→«بر ۱۰۰۰ نویسه» (×۱۰۰۰) |
+| `providers/sync.py` | `supports_audio=True` برای مدل‌های صوتی/چندرسانه‌ای، خاموش‌کردن `supports_tools/stream` برای مدل‌های اختصاصی گفتار، نوشتن قیمت صوتی در `models` و `price_history` |
+| `api/v1/models.py` + `schemas/providers.py` | فیلد جدید `audio_chat` (مدل چت با ورودی صوتی، بدون endpoint گفتار) |
+| `providers/adapters/openai_chat.py` | `openrouter` در `AUDIO_KINDS` + رونویسی JSON/base64 |
+| `seeding/audio_presets.py` | ۱۲ مدل آمادهٔ OpenRouter (ویسپر، nova-3، scribe-v2، eleven-v3، aura-2، kokoro…) |
+| `apps/web` (صفحهٔ مدل‌ها) | نشان «صوتی (چت)» جدا از «گفتار→متن»/«متن→گفتار»؛ قیمت و «آزمایش صدا» فقط برای مدل‌های اختصاصی گفتار |
+
+**شاهد زنده (روی همین سرویس):**
+
+| بررسی | نتیجه |
+|---|---|
+| `POST /v1/providers/{id}/sync-models` (openrouter) | `created=70` · `updated=432` · `total=502` |
+| `POST /v1/providers/{id}/sync-prices` | `updated=73` |
+| `GET /v1/models?capability=audio` | **۱۱۹** مدل: `stt=32`, `tts=39`, `audio_chat=48` (قبلاً ۱) |
+| `GET /v1/audio/models` | `71` مدل قابل استفاده در `/audio` (۳۲ STT + ۳۹ TTS) |
+| `GET /v1/audio/presets` | `18` مدل آماده (۹ STT + ۹ TTS) |
+| نمونهٔ قیمت | `deepgram/nova-3` = `0.0043 $/دقیقه` · `elevenlabs/eleven-v3` = `0.08 $/۱۰۰۰ نویسه` |
+| HTML صفحهٔ `/models` | ۳۲ نشان «گفتار→متن» · ۳۹ نشان «متن→گفتار» · ۴۸ نشان «صوتی (چت)» |
+| تست‌ها | `pytest tests/test_providers_sync.py tests/test_audio.py` → **۲۱ passed** |
+
 ## رفع باگ — حلقهٔ ریدایرکت نشست (`/` ↔ `/login`) ✔
 
 **نشانه:** پنل با مرورگری که قبلاً لاگین شده بود باز نمی‌شد (صفحهٔ سفید یا
