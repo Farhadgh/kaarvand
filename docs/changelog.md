@@ -23,6 +23,17 @@ refresh).
 | `apps/web/app/api/auth/login/route.ts` | `maxAge` کوکی access از `expires_in` پاسخ API (۹۰۰−۶۰ = ۸۴۰ ثانیه) به‌جای ۳۶۰۰ ثابت |
 | `apps/web/lib/api-config.ts` | `accessMaxAge()` و `safeNextPath()` (جلوگیری از open-redirect در `?next`) |
 
+**شاهد زنده (روی `https://kaarvand.amigok.cloud`، بعد از دیپلوی):**
+
+| بررسی | نتیجه |
+|---|---|
+| `GET /` با کوکی کهنهٔ `ob_refresh` | `307 → /api/auth/refresh?next=%2F` (یک گام، نه حلقه) |
+| `GET /api/auth/refresh` با refresh نامعتبر | `307 → /login?next=%2F` + پاک‌شدن هر دو کوکی |
+| `GET /login` بدون کوکی | `200` |
+| `GET /models` با کوکی access کهنه | `307 → /api/auth/expired` → `307 → /login?next=%2Fmodels` |
+| `GET /api/auth/refresh` با نشست معتبر | `307 → /models` + دو کوکی تازه؛ سپس `/models` = `200` |
+| `/models` با نشست معتبر | `200` · نشان «صوتی · گفتار→متن» · کلید میان‌بر «صوتی:» · لینک «آزمایش صدا» |
+
 ## قدم ۱۴ — مدل‌های صوتی (STT + TTS) ✔
 
 **انجام شد:** تبدیل گفتار به متن و متن به گفتار، با همان زیرساخت پروایدر/قیمت/دفتر مصرف.
