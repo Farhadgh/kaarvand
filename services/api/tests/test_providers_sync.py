@@ -138,6 +138,99 @@ async def test_sync_prices_from_provider_payload(client: Any, auth_headers: dict
 
 
 @respx.mock
+async def test_sync_reads_speech_models_from_the_filtered_lists(
+    client: Any, auth_headers: dict[str, str]
+) -> None:
+    """The real OpenRouter list returns ``architecture: null`` for speech models;
+    only ``?output_modalities=…`` reveals them (with pricing)."""
+    provider = await _create(
+        client,
+        auth_headers,
+        kind="openrouter",
+        base_url="https://openrouter.ai/api/v1",
+        prices_url="https://openrouter.ai/api/v1/models",
+    )
+    listing = {
+        "data": [
+            {
+                "id": "openai/whisper-1",
+                "pricing": {"prompt": "0.0001", "completion": "0"},
+                "architecture": None,
+            },
+            {
+                "id": "google/gemini-2.5-flash",
+                "pricing": {"prompt": "0.0000003", "completion": "0.0000025"},
+                "architecture": {
+                    "modality": "text+audio->text",
+                    "input_modalities": ["text", "audio"],
+                    "output_modalities": ["text"],
+                },
+            },
+        ]
+    }
+    stt = {
+        "data": [
+            {
+                "id": "openai/whisper-1",
+                "pricing": {"prompt": "0.0001", "completion": "0"},
+                "architecture": {
+                    "modality": "audio->transcription",
+                    "output_modalities": ["transcription"],
+                },
+            },
+            {
+                "id": "deepgram/nova-3",
+                "pricing": {"prompt": "0.0000716666666667", "completion": "0"},
+                "architecture": {
+                    "modality": "audio->transcription",
+                    "output_modalities": ["transcription"],
+                },
+            },
+        ]
+    }
+    tts = {
+        "data": [
+            {
+                "id": "elevenlabs/eleven-v3",
+                "pricing": {"prompt": "0.00008", "completion": "0"},
+                "architecture": {"modality": "text->speech", "output_modalities": ["speech"]},
+            }
+        ]
+    }
+    respx.get("https://openrouter.ai/api/v1/models").mock(
+        return_value=httpx.Response(200, json=listing)
+    )
+    respx.get(
+        url__regex=r"https://openrouter\.ai/api/v1/models\?output_modalities=transcription"
+    ).mock(return_value=httpx.Response(200, json=stt))
+    respx.get(url__regex=r"https://openrouter\.ai/api/v1/models\?output_modalities=speech").mock(
+        return_value=httpx.Response(200, json=tts)
+    )
+
+    synced = await client.post(f"/v1/providers/{provider['id']}/sync-models", headers=auth_headers)
+    assert synced.status_code == 200, synced.text
+    # 2 from the plain list + 2 speech models that only the filtered lists expose
+    assert synced.json()["created"] == 4
+
+    await client.post(f"/v1/providers/{provider['id']}/sync-prices", headers=auth_headers)
+
+    models = (
+        await client.get("/v1/models", params={"provider_id": provider["id"]}, headers=auth_headers)
+    ).json()
+    by_id = {model["external_id"]: model for model in models}
+
+    assert by_id["openai/whisper-1"]["audio_kind"] == "stt"
+    assert Decimal(str(by_id["openai/whisper-1"]["audio_input_price"])) == Decimal("0.0060000000")
+    assert by_id["deepgram/nova-3"]["audio_kind"] == "stt"
+    assert Decimal(str(by_id["deepgram/nova-3"]["audio_input_price"])) == Decimal("0.0043000000")
+    assert by_id["elevenlabs/eleven-v3"]["audio_kind"] == "tts"
+    assert Decimal(str(by_id["elevenlabs/eleven-v3"]["audio_output_price"])) == Decimal(
+        "0.0800000000"
+    )
+    assert by_id["google/gemini-2.5-flash"]["audio_chat"] is True
+
+
+@respx.mock
 async def test_sync_discovers_speech_models_and_audio_prices(
     client: Any, auth_headers: dict[str, str]
 ) -> None:

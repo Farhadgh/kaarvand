@@ -9,6 +9,7 @@ from typing import Any
 from app.providers.adapters.chat_common import make_client
 from app.providers.adapters.litellm_endpoints import (
     LITELLM_PREFIX,
+    _audio_kind_of,
     build_headers,
     build_query_params,
     models_endpoint,
@@ -17,6 +18,10 @@ from app.providers.adapters.litellm_endpoints import (
 )
 from app.providers.base import ConnectionResult, RemoteModel, RemotePrice
 from app.providers.credentials import decrypt_api_key, scrub
+
+# OpenRouter only reveals architecture (and pricing) for speech models when the
+# list is filtered by output modality, so both lists are fetched on sync.
+OPENROUTER_AUDIO_MODALITIES = {"transcription": "stt", "speech": "tts"}
 
 
 async def _get_json(provider: Any, url: str, *, timeout: float) -> dict[str, Any]:
@@ -32,12 +37,64 @@ async def _get_json(provider: Any, url: str, *, timeout: float) -> dict[str, Any
     return payload if isinstance(payload, dict) else {"data": payload}
 
 
+async def _openrouter_audio_items(provider: Any, *, timeout: float) -> list[dict[str, Any]]:
+    """Raw speech-model entries from OpenRouter (best effort, never fatal)."""
+    endpoint = models_endpoint(provider)
+    if not endpoint:
+        return []
+    items: list[dict[str, Any]] = []
+    for modality in OPENROUTER_AUDIO_MODALITIES:
+        try:
+            payload = await _get_json(
+                provider, f"{endpoint}?output_modalities={modality}", timeout=timeout
+            )
+        except Exception:  # noqa: BLE001 - discovery is best effort
+            continue
+        items.extend(payload.get("data") or [])
+    return items
+
+
+async def _merge_openrouter_audio(
+    provider: Any, models: list[RemoteModel], *, timeout: float
+) -> list[RemoteModel]:
+    items = await _openrouter_audio_items(provider, timeout=timeout)
+    if not items:
+        return models
+    by_id = {model.external_id: model for model in models}
+    for item in items:
+        model_id = item.get("id")
+        if not model_id:
+            continue
+        kind = _audio_kind_of(item.get("architecture") or {})
+        if kind is None:
+            continue
+        known = by_id.get(model_id)
+        if known is not None:
+            known.meta = {**(known.meta or {}), "audio_kind": kind}
+            continue
+        model = RemoteModel(
+            external_id=model_id,
+            display_name=item.get("name"),
+            meta={
+                "audio_kind": kind,
+                "pricing": item.get("pricing"),
+                "architecture": item.get("architecture"),
+            },
+        )
+        models.append(model)
+        by_id[model_id] = model
+    return models
+
+
 async def list_models(provider: Any, *, timeout: float = 30.0) -> list[RemoteModel]:
     endpoint = models_endpoint(provider)
     if not endpoint:
         return []
     payload = await _get_json(provider, endpoint, timeout=timeout)
-    return parse_models(provider, payload)
+    models = parse_models(provider, payload)
+    if provider.kind == "openrouter":
+        models = await _merge_openrouter_audio(provider, models, timeout=timeout)
+    return models
 
 
 _AUDIO_STEP = Decimal("0.0000000001")
@@ -85,6 +142,26 @@ def _prices_from_payload(payload: dict[str, Any]) -> list[RemotePrice]:
     return prices
 
 
+async def _merge_openrouter_audio_prices(
+    provider: Any, prices: list[RemotePrice], *, timeout: float
+) -> list[RemotePrice]:
+    items = await _openrouter_audio_items(provider, timeout=timeout)
+    if not items:
+        return prices
+    extra = {price.external_id: price for price in _prices_from_payload({"data": items})}
+    seen: set[str] = set()
+    merged: list[RemotePrice] = []
+    for price in prices:
+        found = extra.get(price.external_id)
+        if found is not None:
+            price.audio_input_price = found.audio_input_price
+            price.audio_output_price = found.audio_output_price
+            seen.add(price.external_id)
+        merged.append(price)
+    merged.extend(price for key, price in extra.items() if key not in seen)
+    return merged
+
+
 async def fetch_prices(provider: Any, *, timeout: float = 30.0) -> list[RemotePrice]:
     """Provider published prices; falls back to the offline table if installed."""
     endpoint = getattr(provider, "prices_url", None)
@@ -94,6 +171,8 @@ async def fetch_prices(provider: Any, *, timeout: float = 30.0) -> list[RemotePr
     if endpoint:
         payload = await _get_json(provider, endpoint, timeout=timeout)
         prices = _prices_from_payload(payload)
+        if provider.kind == "openrouter":
+            prices = await _merge_openrouter_audio_prices(provider, prices, timeout=timeout)
         if prices:
             return prices
         return litellm_prices(provider)
