@@ -197,13 +197,13 @@ async def test_sync_reads_speech_models_from_the_filtered_lists(
             }
         ]
     }
-    respx.get("https://openrouter.ai/api/v1/models").mock(
+    respx.get(url__regex=r"https://openrouter\.ai/api/v1/models$").mock(
         return_value=httpx.Response(200, json=listing)
     )
-    respx.get(
-        url__regex=r"https://openrouter\.ai/api/v1/models\?output_modalities=transcription"
-    ).mock(return_value=httpx.Response(200, json=stt))
-    respx.get(url__regex=r"https://openrouter\.ai/api/v1/models\?output_modalities=speech").mock(
+    respx.get(url__regex=r"output_modalities=transcription").mock(
+        return_value=httpx.Response(200, json=stt)
+    )
+    respx.get(url__regex=r"output_modalities=speech").mock(
         return_value=httpx.Response(200, json=tts)
     )
 
