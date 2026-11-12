@@ -17,7 +17,7 @@
 
 | فایل | تغییر |
 |---|---|
-| `providers/adapters/openai_chat.py` | `_http_code` تفکیک‌شده (`provider.rejected` / `rate_limited` / `auth_failed` / `call_failed`)، لاگ `logger.warning` با متن پاک‌شدهٔ پروایدر، تلاش دوبارهٔ خودکار با فرمت خواسته‌شده |
+| `providers/adapters/openai_chat.py` + `chat_common.py` | `provider.rejected` / `rate_limited` / `auth_failed` / `call_failed` به‌جای `provider.http_400` (برای صدا **و** چت)، لاگ `logger.warning` با متن پاک‌شدهٔ پروایدر، تلاش دوبارهٔ خودکار با فرمت خواسته‌شده |
 | `providers/adapters/audio_pcm.py` (جدید) | بسته‌بندی PCM خام در WAV با نرخ/کانال از `content-type` |
 | `providers/adapters/litellm_endpoints.py` + `litellm_catalog.py` | ذخیرهٔ `supported_voices` در `models.meta.voices` |
 | `audio/service.py` | voice نامعتبر → اولین voice مجاز مدل؛ گزارش `format`/`voice` واقعی در پاسخ |

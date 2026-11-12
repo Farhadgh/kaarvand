@@ -145,10 +145,26 @@ def error_from_exception(provider: Any, exc: Exception) -> Chunk:
     return Chunk(type="error", error_code=code, detail=scrub(provider, str(exc)))
 
 
+def http_code(status_code: int) -> str:
+    """Map an upstream status to a code the panel can translate.
+
+    ``provider.http_400`` style codes told the operator nothing (and were missing
+    from ``errors-fa.ts``, hence the infamous «خطای نامشخص»). Every status now
+    carries a meaning; the provider's own message travels along as ``detail``.
+    """
+    if status_code in (401, 403):
+        return "provider.auth_failed"
+    if status_code == 429:
+        return "provider.rate_limited"
+    if 400 <= status_code < 500:
+        return "provider.rejected"
+    return "provider.call_failed"
+
+
 def http_error(provider: Any, status_code: int, body: bytes) -> Chunk:
     detail = body.decode("utf-8", errors="replace")
-    code = "provider.auth_failed" if status_code in (401, 403) else f"provider.http_{status_code}"
-    return Chunk(type="error", error_code=code, detail=scrub(provider, detail))
+    return Chunk(type="error", error_code=http_code(status_code), detail=scrub(provider, detail))
+
 
 
 def usage_chunk(tokens_in: Any, tokens_out: Any) -> Chunk | None:

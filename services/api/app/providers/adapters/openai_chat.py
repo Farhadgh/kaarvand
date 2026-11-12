@@ -13,6 +13,7 @@ from app.core.errors import AppError
 from app.providers.adapters.audio_pcm import to_wav
 from app.providers.adapters.chat_common import (
     error_from_exception,
+    http_code,
     http_error,
     make_client,
     openai_messages,
@@ -63,19 +64,9 @@ _ALLOWED_FORMAT_RE = re.compile(r"response_format\s*=?\s*\\?\"?([a-z0-9]{3,5})",
 
 
 def _http_code(status_code: int) -> str:
-    """Turn an upstream status into a code the panel can translate.
+    """Upstream status -> translatable code (see ``chat_common.http_code``)."""
+    return http_code(status_code)
 
-    ``provider.http_400`` style codes told the operator nothing (and were not in
-    ``errors-fa.ts``, hence the infamous «خطای نامشخص»). Every 4xx now carries a
-    meaning; the provider's own message travels along as ``detail``.
-    """
-    if status_code in (401, 403):
-        return "provider.auth_failed"
-    if status_code == 429:
-        return "provider.rate_limited"
-    if 400 <= status_code < 500:
-        return "provider.rejected"
-    return "provider.call_failed"
 
 
 def _provider_error(
