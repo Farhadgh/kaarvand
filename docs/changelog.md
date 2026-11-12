@@ -33,8 +33,21 @@ gemini-flash-tts، minimax، voxtral-mini-tts-3، grok-voice، fish drama-3)، �
 `weak` و ۱۰ مدل `none` (از جمله `kokoro-82m` با امتیاز ۰٫۰۰ و `aura-2` با ۰٫۱۴). همهٔ ۳۱ مدل STT
 امتیاز ۰٫۹۸ گرفتند.
 
-**شاهد زنده:** `pytest tests/test_audio.py` → **۲۶ passed** (۴ تست جدید: retry روی pcm، تبدیل
-PCM→WAV، کدهای خطای دقیق، برچسب/فیلتر فارسی و override دستی).
+**شاهد زنده (روی `https://kaarvand.amigok.cloud` پس از دیپلوی):**
+
+| بررسی | نتیجه |
+|---|---|
+| `GET /v1/audio/meta` | `formats = [mp3, wav, opus, aac, flac, pcm]` + `persian_levels` |
+| `GET /v1/audio/models` | ۷۱ مدل، فارسی‌بلدها اول؛ ۴۴ مدل `verified` (۳۲ STT + ۱۲ TTS) |
+| `GET /v1/models?limit=500` | ۶۸ از ۷۱ مدل صوتی فیلد `persian` دارند |
+| `POST /v1/audio/speech` روی `google/gemini-3.8-flash-tts` (همان مدلی که خطا می‌داد) | **۲۰۰** · `audio/wav` · `RIFF` · `X-Audio-Format=wav` · voice خودکار `alloy→Zephyr` |
+| `POST /v1/audio/speech` روی `elevenlabs/eleven-v3` | **۲۰۰** · mp3 · voice خودکار `alloy→george` |
+| `POST /v1/audio/speech` روی `hexgrad/kokoro-82m` | **۲۰۰** · mp3 · voice خودکار `alloy→af_alloy` |
+| voice نامعتبر (پیش از اصلاح) | `provider.rejected` + متن «Unknown voice "alloy"» (نه «خطای نامشخص») |
+| `POST /v1/providers/{id}/sync-models` | `updated=502` (حالا `meta.voices` هم ذخیره می‌شود) |
+| HTML صفحهٔ `/models` | ۴۴ بج «فارسی ✓» و ۱۰ بج «فارسی ✗» |
+| HTML صفحهٔ `/audio` | راهنمای «آزمایش‌شده» + ۴۸ تیک ✓ در فهرست مدل‌ها |
+| تست‌ها | `pytest tests/test_audio.py` → **۲۲ passed** · `pytest tests` → **۲۶۱ passed** · `ruff check` → clean · `tsc --noEmit` → exit 0 |
 
 
 
