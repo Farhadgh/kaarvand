@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audio import service as audio
+from app.audio.languages import LEVEL_LABELS_FA
 from app.core.config import Settings, get_settings
 from app.core.deps import get_current_user, get_db, require_roles
 from app.db.models import Model, Provider, User
@@ -31,7 +32,10 @@ from app.seeding.audio_presets import AUDIO_PRESETS
 router = APIRouter(tags=["audio"])
 operator = require_roles("owner", "admin", "operator")
 
-FORMATS = ["mp3", "opus", "aac", "flac", "wav"]
+FORMATS = ["mp3", "wav", "opus", "aac", "flac", "pcm"]
+
+#: Panel ordering: Persian-capable models first, then good, weak, unknown, none.
+_PERSIAN_ORDER = {"verified": 0, "good": 1, "weak": 2, None: 3, "none": 4}
 
 
 @router.get("/audio/meta", response_model=AudioMetaOut)
@@ -45,6 +49,7 @@ async def audio_meta(_: User = Depends(get_current_user)) -> AudioMetaOut:
             "stt": "تبدیل گفتار به متن (whisper / transcribe)",
             "tts": "تبدیل متن به گفتار (tts / speech)",
         },
+        persian_levels=LEVEL_LABELS_FA,
     )
 
 
@@ -57,6 +62,7 @@ async def audio_presets(_: User = Depends(get_current_user)) -> list[AudioPreset
 @router.get("/audio/models", response_model=list[AudioModelOut])
 async def list_audio_models(
     kind: Literal["stt", "tts"] | None = Query(default=None),
+    persian: Literal["verified", "good", "weak", "none", "any"] | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[AudioModelOut]:
@@ -79,6 +85,12 @@ async def list_audio_models(
             continue
         if kind and inferred != kind:
             continue
+        info = audio.persian_of(model, inferred)
+        if persian == "any":
+            if info is None:
+                continue
+        elif persian and (info or {}).get("level") != persian:
+            continue
         out.append(
             AudioModelOut(
                 id=model.id,
@@ -91,8 +103,21 @@ async def list_audio_models(
                 audio_input_price=model.audio_input_price,
                 audio_output_price=model.audio_output_price,
                 is_enabled=model.is_enabled and provider.is_enabled,
+                persian=(info or {}).get("level"),  # type: ignore[arg-type]
+                persian_score=(info or {}).get("score"),
+                persian_note_fa=(info or {}).get("label_fa"),
             )
         )
+
+    # Persian-capable models first: an operator looking for a usable voice should
+    # never have to scroll past ten models that cannot speak Persian at all.
+    out.sort(
+        key=lambda row: (
+            _PERSIAN_ORDER.get(row.persian, 3),
+            row.kind,
+            row.external_id,
+        )
+    )
     return out
 
 
@@ -139,9 +164,13 @@ async def create_speech(
         fmt=payload.format,
         speed=payload.speed,
     )
-    filename = f"kaarvand-speech-{uuid.uuid4().hex[:8]}.{payload.format}"
+    # the provider may have forced another container (PCM is wrapped into WAV)
+    delivered = str(meta.get("format") or payload.format)
+    filename = f"kaarvand-speech-{uuid.uuid4().hex[:8]}.{delivered}"
     headers = {
         "Content-Disposition": f'attachment; filename="{filename}"',
+        "X-Audio-Format": delivered,
+        "X-Audio-Voice": str(meta.get("voice") or payload.voice),
         "X-Cost-Usd": str(meta["cost_usd"]),
         "X-Cost-Irr": str(meta["cost_irr"]),
         "X-Fx-Rate": str(meta["fx_rate"]),

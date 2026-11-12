@@ -26,6 +26,8 @@ export const errorMessages: Record<string, string> = {
   "provider.call_failed": "فراخوانی مدل ناموفق بود.",
   "provider.auth_failed": "کلید پروایدر معتبر نیست.",
   "provider.timeout": "پاسخی از پروایدر نرسید (timeout).",
+  "provider.rejected": "پروایدر درخواست را رد کرد؛ متن خطای آن در پایین آمده است.",
+  "provider.rate_limited": "محدودیت نرخ پروایدر فعال شد؛ چند لحظه بعد دوباره تلاش کنید.",
 
   "model.not_found": "مدل یافت نشد.",
   "model.disabled": "این مدل غیرفعال است.",
@@ -138,5 +140,9 @@ export const errorMessages: Record<string, string> = {
 
 export function translateCode(code: string | undefined | null): string {
   if (!code) return errorMessages.unknown;
-  return errorMessages[code] ?? errorMessages.unknown;
+  const known = errorMessages[code];
+  if (known) return known;
+  // Never hide the code again: an unlisted code still tells support what happened.
+  return `${errorMessages.unknown} (کد: ${code})`;
 }
+

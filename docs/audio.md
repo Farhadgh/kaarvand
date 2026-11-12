@@ -67,9 +67,18 @@
 **گفتار به متن:** انتخاب مدل STT، زبان اختیاری (`fa`), انتخاب فایل صوتی (mp3/wav/m4a/ogg/webm،
 حداکثر ۲۵ مگابایت) → متن استخراج‌شده، مدت‌زمان واقعی صوت، هزینه و دکمهٔ «کپی متن».
 
-**متن به گفتار:** انتخاب مدل TTS، voice، متن (حداکثر ۴۰۰۰ نویسه)، قالب (mp3/opus/aac/flac/wav)
-و سرعت → پخش‌کنندهٔ صوتی در همان صفحه + دکمهٔ دانلود + هزینهٔ ثبت‌شده. دکمهٔ «برآورد هزینه»
-بدون فراخوانی پروایدر قیمت را نشان می‌دهد.
+**متن به گفتار:** انتخاب مدل TTS، voice، متن (حداکثر ۴۰۰۰ نویسه)، قالب
+(mp3/wav/opus/aac/flac/pcm) و سرعت → پخش‌کنندهٔ صوتی در همان صفحه + دکمهٔ دانلود + هزینهٔ
+ثبت‌شده. دکمهٔ «برآورد هزینه» بدون فراخوانی پروایدر قیمت را نشان می‌دهد.
+
+کنار انتخاب مدل، وضعیت فارسی همان مدل نوشته می‌شود (بخش ۷) و تیک «فقط مدل‌هایی که فارسی را
+می‌خوانند» فهرست را به مدل‌های تأییدشده محدود می‌کند. فهرست مدل‌ها هم از سمت API طوری مرتب
+می‌شود که مدل‌های فارسی‌بلد اول بیایند.
+
+**voice از خود کاتالوگ می‌آید:** `supported_voices` پروایدر در `models.meta.voices` ذخیره
+می‌شود و پنل همان‌ها را نشان می‌دهد (پیش‌فرض `alloy` مخصوص OpenAI است و مثلاً ElevenLabs آن را
+رد می‌کند). اگر کلاینتی voice نامعتبر بفرستد، سرویس به‌جای شکست، اولین voice مجاز مدل را
+استفاده می‌کند و نام واقعی را در هدر `X-Audio-Voice` برمی‌گرداند.
 
 ## ۴) هزینه‌گذاری
 
@@ -116,3 +125,97 @@ OpenAI را می‌پذیرد، فقط `model` را namespace‌دار بدهی�
 - فایل‌ها روی دیسک ذخیره **نمی‌شوند**؛ در حافظه خوانده و به پروایدر پاس می‌شوند.
 - برای پیام صوتی در پیام‌رسان‌ها (قدم ۱۰) هنوز ورودی صوتی پردازش نمی‌شود؛ این کار با همین
   endpoint STT در قدم بعد قابل اتصال است (`audio.transcribe` → متن → اجرای ایجنت).
+
+## ۷) پشتیبانی فارسی — سنجیده، نه حدس‌زده
+
+«۴۰+ زبان» در توضیحات سازنده به معنای فارسیِ خوب نیست. چند مدل معروف فارسی را با لهجهٔ عربی
+می‌خوانند و بعضی صدای بی‌ربط تولید می‌کنند. پس کاروند به‌جای اعتماد به متن تبلیغاتی، خودش
+آزمایش می‌کند:
+
+```
+متن فارسی → TTS مدل → رونویسی با ویسپر → مقایسهٔ متن رونویسی با متن اصلی (امتیاز ۰..۱)
+```
+
+اسکریپت: `scripts/fa_audio_probe.py` (بازتولیدپذیر):
+
+```bash
+cd services/api
+OPENROUTER_API_KEY=sk-or-... python ../../scripts/fa_audio_probe.py            # TTS + STT
+OPENROUTER_API_KEY=... python ../../scripts/fa_audio_probe.py --kind tts --json /tmp/fa.json
+OPENROUTER_API_KEY=... python ../../scripts/fa_audio_probe.py --write-meta     # روی سرور
+```
+
+| سطح | امتیاز | معنی | برچسب پنل |
+|---|---|---|---|
+| `verified` | ≥ ۰٫۹۵ | فارسی را روان می‌خواند (آزمایش‌شده) | «فارسی ✓» سبز |
+| `good` | ≥ ۰٫۸۰ | فارسی با لهجهٔ کم | «فارسی ~» فیروزه‌ای |
+| `weak` | ≥ ۰٫۵۰ | فارسی شکسته/عربی‌شده | «فارسی ضعیف» کهربایی |
+| `none` | < ۰٫۵۰ | فارسی را پشتیبانی نمی‌کند | «فارسی ✗» قرمز |
+
+**نتیجهٔ سنجش ۱۲ نوامبر ۲۰۲۶ (۳۹ مدل TTS و ۳۱ مدل STT):** فقط ۱۲ مدل از ۳۹ مدل TTS فارسی را
+واقعاً روان می‌خوانند؛ در سمت STT همهٔ ۳۱ مدل متن فارسی را درست نوشتند.
+
+| مدل TTS | امتیاز | سطح |
+|---|---|---|
+| `elevenlabs/eleven-v3` · `eleven-v3-conversational` · `eleven-v4` · `eleven-v4-turbo` | ۰٫۹۸ | verified |
+| `google/gemini-3.1-flash-tts-preview` · `gemini-3.8-flash-tts` · `gemini-3.8-flash-lite-tts` | ۰٫۹۸ | verified |
+| `minimax/speech-2.8-hd` · `speech-2.8-turbo` | ۰٫۹۸ | verified |
+| `mistralai/voxtral-mini-tts-3-0` | ۰٫۹۸ | verified |
+| `x-ai/grok-voice-tts-1.0` | ۰٫۹۸ | verified |
+| `fish-audio/drama-3` | ۰٫۹۸ | verified |
+| `fish-audio/s2-pro` | ۰٫۹۴ | good |
+| `elevenlabs/eleven-flash-v2.5` | ۰٫۹۳ | good |
+| `elevenlabs/eleven-turbo-v2.5` | ۰٫۹۲ | good |
+| `elevenlabs/eleven-multilingual-v2` | ۰٫۸۵ | good |
+| `fish-audio/s2.1-pro` · `s2.1-pro-free` · `s1` | ۰٫۷۵–۰٫۷۹ | weak |
+| `microsoft/mai-voice-2` · `2.1` · `2-flash` · `2.1-flash` | ۰٫۶۷–۰٫۷۱ | weak |
+| `qwen/qwen-audio-3.0-tts-flash` · `tts-plus` | ۰٫۶۲–۰٫۶۸ | weak |
+| `mistralai/voxtral-mini-tts-2603` | ۰٫۵۶ | weak |
+| `bytedance-seed/seed-audio-1-0` | ۰٫۴۱ | none |
+| `elevenlabs/eleven-flash-v2` · `eleven-turbo-v2` | ۰٫۱۵–۰٫۱۷ | none |
+| `speechify/simba-3.5` · `deepgram/flux-tts` | ۰٫۱۶ | none |
+| `sesame/csm-1b` · `deepgram/aura-2` · `assemblyai/assemblyai-tts-1` | ۰٫۱۲–۰٫۱۵ | none |
+| `canopylabs/orpheus-3b-0.1-ft` · `hexgrad/kokoro-82m` | ۰٫۰۰–۰٫۰۸ | none |
+| `heygen/heygen-voice-1*` | — | خطای ۴۰۰ روی mp3؛ با `pcm` کار می‌کند |
+
+**چطور این اطلاعات به پنل می‌رسد؟**
+
+- جدول بالا در `services/api/app/audio/languages.py` نگه‌داری می‌شود
+  (`PERSIAN_TTS` / `PERSIAN_STT` + `PROBED_AT`).
+- `GET /v1/audio/models` برای هر مدل `persian`، `persian_score` و `persian_note_fa` می‌دهد؛
+  فیلتر `?persian=verified|good|weak|none|any` هم دارد.
+- `GET /v1/models` (صفحهٔ مدل‌ها) هم فیلد `persian` را برمی‌گرداند و پنل بج «فارسی ✓» را کنار
+  مدل‌های صوتی نشان می‌دهد.
+- **override دستی:** `PATCH /v1/models/{id}` با `{"persian": "good"}` (یا `none`/`unknown` برای
+  پاک‌کردن) در `meta.persian` ذخیره می‌شود و بر جدول اولویت دارد. نتیجهٔ سنجش تازه هم می‌تواند در
+  `meta.persian_probe` بنشیند (`--write-meta`).
+
+## ۸) وقتی مدل فقط `pcm` می‌دهد
+
+بعضی مدل‌ها (`google/gemini-*-tts`، `heygen/*`) فقط `response_format="pcm"` را قبول می‌کنند و
+برای بقیه `400` برمی‌گردانند. آداپتور:
+
+1. پیام خطا را می‌خواند و فرمت خواسته‌شده را استخراج می‌کند،
+2. **یک‌بار** با همان فرمت دوباره تلاش می‌کند،
+3. اگر پاسخ `audio/pcm` بود، نمونه‌های خام را با هدر WAV بسته‌بندی می‌کند
+   (`providers/adapters/audio_pcm.py`؛ نرخ/کانال از `content-type` مثل
+   `audio/pcm;rate=24000;channels=1`).
+
+نتیجه: کاربر همیشه فایل قابل‌پخش می‌گیرد؛ قالب واقعی در هدر `X-Audio-Format` و پسوند فایل
+`Content-Disposition` می‌آید (اگر `pcm` خواسته باشید، `wav` تحویل می‌گیرید).
+
+## ۹) خطاهای شفاف
+
+هر پاسخ ۴xx پروایدر با کد قابل‌ترجمه و متن خود پروایدر برمی‌گردد (و در لاگ با `logger.warning`
+ثبت می‌شود):
+
+| وضعیت پروایدر | کد | پیام فارسی پنل |
+|---|---|---|
+| ۴۰۱/۴۰۳ | `provider.auth_failed` | کلید پروایدر معتبر نیست. |
+| ۴۲۹ | `provider.rate_limited` | محدودیت نرخ پروایدر فعال شد؛ چند لحظه بعد دوباره تلاش کنید. |
+| بقیهٔ ۴xx | `provider.rejected` | پروایدر درخواست را رد کرد؛ متن خطای آن در پایین آمده است. |
+| ۵xx | `provider.call_failed` | فراخوانی مدل ناموفق بود. |
+
+متن انگلیسی پروایدر در `error.params.detail` می‌آید، پس دیگر «خطای نامشخص» بی‌اطلاع نمی‌بینید؛
+اگر کدی در `errors-fa.ts` نباشد، خودِ کد هم در پیام نمایش داده می‌شود.
+

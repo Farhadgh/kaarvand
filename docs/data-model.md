@@ -23,7 +23,7 @@
 |---|---|
 | `provider_adapters` | کاتالوگ ۱۲ نوع (seed) با عنوان فارسی و `spec_schema` |
 | `providers` | kind, base_url, auth_type, **credentials_enc**(AES-GCM), extra_headers, `chat_spec`/`response_map` برای declarative, models_url, prices_url, priority, health |
-| `models` | یکتا (provider_id, external_id)، قابلیت‌ها، ۴ قیمت، markup، `is_enabled` |
+| `models` | یکتا (provider_id, external_id)، قابلیت‌ها، ۴ قیمت، markup، `is_enabled`؛ کلیدهای `meta`: `audio_kind`، `voices` (از `supported_voices` کاتالوگ)، `persian` (اصلاح دستی برچسب فارسی)، `persian_probe` (نتیجهٔ اسکریپت سنجش) |
 | `price_history` | append-only؛ `effective_from` + منبع (`provider`/`litellm`/`manual`) + قیمت صوتی (`audio_input_price` دلار/دقیقه، `audio_output_price` دلار/۱۰۰۰ نویسه) |
 | `capability_rules` | regex → قابلیت (استنتاج هنگام سینک) |
 

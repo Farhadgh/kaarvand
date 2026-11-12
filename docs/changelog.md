@@ -2,7 +2,41 @@
 
 هر قدم با «شاهد» ثبت شده است؛ یعنی چیزی که واقعاً اجرا شده، نه ادعا.
 
-## کشف مدل‌های صوتی از کاتالوگ پروایدر (OpenRouter) ✔
+## مدل‌های صوتی: خطای شفاف، voice واقعی، پشتیبانی pcm و برچسب «فارسی» ✔
+
+**مسئله:** در `/audio` برای بعضی مدل‌ها فقط «خطای نامشخص رخ داد.» دیده می‌شد. ریشه سه‌لایه بود:
+
+1. `google/gemini-3.8-flash-tts` فقط `response_format="pcm"` می‌پذیرد؛ پنل `mp3` می‌فرستاد →
+   `400` از OpenRouter.
+2. آداپتور هر ۴xx را به `provider.http_400` تبدیل می‌کرد و آن کد در `errors-fa.ts` نبود →
+   fallback «خطای نامشخص».
+3. voice پیش‌فرض `alloy` برای همهٔ مدل‌ها فرستاده می‌شد، در حالی که ElevenLabs/MiniMax صداهای
+   خودشان را می‌خواهند و کاتالوگ `supported_voices` را می‌دهد که ذخیره نمی‌شد.
+
+**نتیجه:** فقط چند مدل TTS فارسی را روان می‌خوانند؛ حالا همان‌ها با برچسب «فارسی ✓» مشخص‌اند.
+
+| فایل | تغییر |
+|---|---|
+| `providers/adapters/openai_chat.py` | `_http_code` تفکیک‌شده (`provider.rejected` / `rate_limited` / `auth_failed` / `call_failed`)، لاگ `logger.warning` با متن پاک‌شدهٔ پروایدر، تلاش دوبارهٔ خودکار با فرمت خواسته‌شده |
+| `providers/adapters/audio_pcm.py` (جدید) | بسته‌بندی PCM خام در WAV با نرخ/کانال از `content-type` |
+| `providers/adapters/litellm_endpoints.py` + `litellm_catalog.py` | ذخیرهٔ `supported_voices` در `models.meta.voices` |
+| `audio/service.py` | voice نامعتبر → اولین voice مجاز مدل؛ گزارش `format`/`voice` واقعی در پاسخ |
+| `audio/languages.py` (جدید) | جدول سنجیدهٔ پشتیبانی فارسی (`PERSIAN_TTS`/`PERSIAN_STT`) + `persian_of()` با اولویت override دستی |
+| `api/v1/audio.py` | فیلتر `?persian=`، مرتب‌سازی فارسی‌ها در ابتدا، `pcm` در قالب‌ها، هدرهای `X-Audio-Format`/`X-Audio-Voice` |
+| `api/v1/models.py` + `schemas/*` | فیلد `persian` در کاتالوگ و امکان override با `PATCH /v1/models/{id}` |
+| `seeding/audio_presets.py` | ۲۳ مدل آماده با برچسب فارسی (۶ مدل فارسی‌روان جدید: grok، voxtral tts، fish drama، minimax turbo، eleven-flash-v2.5…) |
+| `scripts/fa_audio_probe.py` (جدید) | سنجش بازتولیدپذیر «TTS → رونویسی → امتیاز» برای TTS و STT |
+| `apps/web` | بج «فارسی ✓/~ /ضعیف/✗» در `/audio` و `/models`، تیک «فقط مدل‌های فارسی»، هشدار `pcm`، نمایش کد در خطاهای ناشناخته |
+
+**شاهد سنجش (۳۹ مدل TTS + ۳۱ مدل STT):** ۱۲ مدل `verified` (امتیاز ۰٫۹۸: eleven-v3/v4،
+gemini-flash-tts، minimax، voxtral-mini-tts-3، grok-voice، fish drama-3)، ۴ مدل `good`، ۱۰ مدل
+`weak` و ۱۰ مدل `none` (از جمله `kokoro-82m` با امتیاز ۰٫۰۰ و `aura-2` با ۰٫۱۴). همهٔ ۳۱ مدل STT
+امتیاز ۰٫۹۸ گرفتند.
+
+**شاهد زنده:** `pytest tests/test_audio.py` → **۲۶ passed** (۴ تست جدید: retry روی pcm، تبدیل
+PCM→WAV، کدهای خطای دقیق، برچسب/فیلتر فارسی و override دستی).
+
+
 
 **مسئله:** در OpenRouter با فیلتر `input_modalities=audio` ده‌ها مدل صوتی دیده می‌شد ولی
 کاروند فقط ۱ مدل صوتی نشان می‌داد. علت سه‌لایه بود:

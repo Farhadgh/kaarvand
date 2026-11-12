@@ -130,6 +130,11 @@ def _parse_openai_style(payload: dict[str, Any]) -> list[RemoteModel]:
         audio_kind = _audio_kind_of(architecture)
         if audio_kind:
             meta["audio_kind"] = audio_kind
+        voices = item.get("supported_voices")
+        if isinstance(voices, list) and voices:
+            # The catalog knows the voice names a TTS model accepts; ``alloy`` is
+            # OpenAI-only and is rejected by e.g. ElevenLabs or MiniMax models.
+            meta["voices"] = [str(voice) for voice in voices]
         out.append(
             RemoteModel(
                 external_id=model_id,

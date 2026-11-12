@@ -34,6 +34,17 @@ function audioBadgeLabel(model: Model): string {
   return "صوتی (چت)";
 }
 
+/**
+ * Measured Persian support for speech models (see app/audio/languages.py).
+ * `null` means "never probed" and renders nothing rather than a misleading label.
+ */
+const PERSIAN_BADGES: Record<string, { label: string; tone: string }> = {
+  verified: { label: "فارسی ✓", tone: "bg-emerald-50 text-emerald-700" },
+  good: { label: "فارسی ~", tone: "bg-teal-50 text-teal-700" },
+  weak: { label: "فارسی ضعیف", tone: "bg-amber-50 text-amber-700" },
+  none: { label: "فارسی ✗", tone: "bg-rose-50 text-rose-700" },
+};
+
 export function ModelsTable({
   models,
   providerNames,
@@ -191,6 +202,13 @@ export function ModelsTable({
                       {model.supports_vision ? <Badge value="low" label="بینایی" /> : null}
                       {model.supports_audio ? (
                         <Badge value="medium" label={audioBadgeLabel(model)} />
+                      ) : null}
+                      {model.persian && PERSIAN_BADGES[model.persian] ? (
+                        <Badge
+                          value="persian"
+                          label={PERSIAN_BADGES[model.persian].label}
+                          className={PERSIAN_BADGES[model.persian].tone}
+                        />
                       ) : null}
                       {model.supports_reasoning ? <Badge value="low" label="استدلال" /> : null}
                     </div>

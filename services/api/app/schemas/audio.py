@@ -9,7 +9,10 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 AudioKind = Literal["stt", "tts"]
-AudioFormat = Literal["mp3", "opus", "aac", "flac", "wav"]
+#: ``pcm`` is offered because some models accept nothing else; the backend wraps
+#: the raw samples into a WAV container before handing them to the caller.
+AudioFormat = Literal["mp3", "opus", "aac", "flac", "wav", "pcm"]
+PersianLevel = Literal["verified", "good", "weak", "none", "unknown"]
 
 
 class AudioModelOut(BaseModel):
@@ -23,6 +26,10 @@ class AudioModelOut(BaseModel):
     audio_input_price: Decimal | None = None  # USD / audio minute (STT)
     audio_output_price: Decimal | None = None  # USD / 1K characters (TTS)
     is_enabled: bool = True
+    #: Persian verdict measured by the TTS -> STT probe (``None`` = not checked).
+    persian: PersianLevel | None = None
+    persian_score: float | None = None
+    persian_note_fa: str | None = None
 
 
 class TranscriptionOut(BaseModel):
@@ -54,7 +61,7 @@ class SpeechMeta(BaseModel):
 
 
 class AudioPresetOut(BaseModel):
-    """A ready-to-add speech model (see app.audio.presets)."""
+    """A ready-to-add speech model (see app.seeding.audio_presets)."""
 
     slug: str
     external_id: str
@@ -63,6 +70,7 @@ class AudioPresetOut(BaseModel):
     audio_input_price: Decimal | None = None
     audio_output_price: Decimal | None = None
     vendor_hint: str | None = None
+    persian: PersianLevel | None = None
 
 
 class AudioMetaOut(BaseModel):
@@ -73,3 +81,5 @@ class AudioMetaOut(BaseModel):
     voices: list[str]
     formats: list[str]
     kinds: dict[str, Any]
+    #: level -> Persian sentence (so the panel never hard-codes the wording)
+    persian_levels: dict[str, str] = Field(default_factory=dict)

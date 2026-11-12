@@ -24,6 +24,8 @@ from app.db.models import Model, Organization, Provider, UsageLedger, User
 from app.providers.registry import get_adapter
 from app.runtime.budget import spent_this_month_irr
 
+from .languages import persian_of as _persian_of
+
 STT = "stt"
 TTS = "tts"
 
@@ -72,6 +74,17 @@ def voices_of(model: Model) -> list[str]:
     if isinstance(configured, list) and configured:
         return [str(item) for item in configured]
     return DEFAULT_VOICES if infer_kind(model.external_id, model.meta) == TTS else []
+
+
+def persian_of(model: Model, kind: str | None = None) -> dict[str, Any] | None:
+    """Persian verdict for a model (manual override -> probe cache -> table)."""
+    resolved = kind or infer_kind(model.external_id, model.meta)
+    return _persian_of(model.external_id, model.meta, kind=resolved)
+
+
+def persian_level(model: Model, kind: str | None = None) -> str | None:
+    info = persian_of(model, kind)
+    return str(info["level"]) if info else None
 
 
 async def resolve_audio_model(
@@ -266,14 +279,25 @@ async def synthesize(
             code="audio.unsupported_provider", status_code=422, params={"kind": provider.kind}
         )
 
+    # A model only accepts its own voice names (``alloy`` is OpenAI-only); when the
+    # panel sends a stale/unsupported voice we fall back to the first supported one
+    # instead of letting the provider reject the whole request.
+    available = voices_of(model)
+    voice_used = voice or "alloy"
+    if available and voice_used not in available:
+        voice_used = available[0]
+
     audio, mime = await speech_call(
         provider,
         model=model.external_id,
         text=clean,
-        voice=voice or "alloy",
+        voice=voice_used,
         fmt=fmt,
         speed=speed,
     )
+
+    # The provider may have forced a different container (PCM is wrapped into WAV).
+    delivered = "wav" if mime == "audio/wav" else fmt
 
     chars = len(clean)
     fx_rate = await current_fx_rate(db, settings)
@@ -292,6 +316,8 @@ async def synthesize(
     meta = {
         "model_id": model.id,
         "chars": chars,
+        "format": delivered,
+        "voice": voice_used,
         "cost_usd": cost_usd,
         "cost_irr": cost_irr,
         "fx_rate": fx_rate,

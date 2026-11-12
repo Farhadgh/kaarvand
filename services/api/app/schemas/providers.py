@@ -122,6 +122,9 @@ class ModelOut(ORMModel):
     audio_kind: str | None = None
     # chat model that accepts audio input (no dedicated STT/TTS endpoint)
     audio_chat: bool = False
+    #: Persian verdict for speech models (verified/good/weak/none), ``None`` if unknown
+    persian: str | None = None
+
     price_currency: str
     price_source: str | None
     price_synced_at: Any | None
@@ -143,6 +146,8 @@ class ModelCreate(BaseModel):
     output_price: Decimal | None = Field(default=None, ge=0)
     voices: list[str] | None = None
     is_enabled: bool = True
+    #: Operator override for the measured Persian verdict (see app.audio.languages)
+    persian: Literal["verified", "good", "weak", "none", "unknown"] | None = None
 
 
 class ModelUpdate(BaseModel):
@@ -156,6 +161,8 @@ class ModelUpdate(BaseModel):
     supports_vision: bool | None = None
     supports_audio: bool | None = None
     supports_reasoning: bool | None = None
+    #: ``meta.persian`` — a manual Persian verdict that wins over the probe table
+    persian: Literal["verified", "good", "weak", "none", "unknown"] | None = None
 
 
 class ManualPriceIn(BaseModel):

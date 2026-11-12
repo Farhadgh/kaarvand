@@ -86,6 +86,8 @@ export interface Model {
   audio_kind: "stt" | "tts" | null;
   /** chat model that accepts audio input but has no dedicated speech endpoint */
   audio_chat: boolean;
+  /** measured Persian verdict for speech models (verified/good/weak/none) */
+  persian: string | null;
   price_currency: string;
   price_source: string | null;
   price_synced_at: string | null;

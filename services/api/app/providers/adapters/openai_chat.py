@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+import re
 from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
 
 from app.core.errors import AppError
+from app.providers.adapters.audio_pcm import to_wav
 from app.providers.adapters.chat_common import (
     error_from_exception,
     http_error,
@@ -53,9 +56,68 @@ AUDIO_MIME = {
     "pcm": "audio/pcm",
 }
 
+logger = logging.getLogger(__name__)
+
+#: ``only supports response_format="pcm"`` -> the format the provider wants.
+_ALLOWED_FORMAT_RE = re.compile(r"response_format\s*=?\s*\\?\"?([a-z0-9]{3,5})", re.IGNORECASE)
+
 
 def _http_code(status_code: int) -> str:
-    return "provider.auth_failed" if status_code in (401, 403) else f"provider.http_{status_code}"
+    """Turn an upstream status into a code the panel can translate.
+
+    ``provider.http_400`` style codes told the operator nothing (and were not in
+    ``errors-fa.ts``, hence the infamous «خطای نامشخص»). Every 4xx now carries a
+    meaning; the provider's own message travels along as ``detail``.
+    """
+    if status_code in (401, 403):
+        return "provider.auth_failed"
+    if status_code == 429:
+        return "provider.rate_limited"
+    if 400 <= status_code < 500:
+        return "provider.rejected"
+    return "provider.call_failed"
+
+
+def _provider_error(
+    provider: Any,
+    status_code: int,
+    body: str,
+    *,
+    model: str,
+    endpoint: str,
+) -> AppError:
+    """Log (scrubbed) upstream rejections so they are debuggable after the fact."""
+    from app.providers.credentials import scrub
+
+    detail = scrub(provider, body[:400])
+    code = _http_code(status_code)
+    if status_code < 500:
+        logger.warning(
+            "provider %s rejected %s on %s with %s: %s",
+            getattr(provider, "kind", "?"),
+            model,
+            endpoint,
+            status_code,
+            detail,
+        )
+    else:
+        logger.error(
+            "provider %s failed on %s for %s with %s: %s",
+            getattr(provider, "kind", "?"),
+            endpoint,
+            model,
+            status_code,
+            detail,
+        )
+    return AppError(code=code, status_code=502, params={"detail": detail})
+
+
+def _wanted_format(body: str) -> str | None:
+    """Extract the single format a picky provider accepts (if it says so)."""
+    if "response_format" not in body:
+        return None
+    match = _ALLOWED_FORMAT_RE.search(body)
+    return match.group(1).lower() if match else None
 
 
 class OpenAICompatibleAdapter:
@@ -177,10 +239,12 @@ class OpenAICompatibleAdapter:
             ) from exc
 
         if response.status_code >= 400:
-            raise AppError(
-                code=_http_code(response.status_code),
-                status_code=502,
-                params={"detail": scrub(provider, response.text[:400])},
+            raise _provider_error(
+                provider,
+                response.status_code,
+                response.text,
+                model=model,
+                endpoint="audio/transcriptions",
             )
 
         try:
@@ -255,10 +319,12 @@ class OpenAICompatibleAdapter:
             ) from exc
 
         if response.status_code >= 400:
-            raise AppError(
-                code=_http_code(response.status_code),
-                status_code=502,
-                params={"detail": scrub(provider, response.text[:400])},
+            raise _provider_error(
+                provider,
+                response.status_code,
+                response.text,
+                model=model,
+                endpoint="audio/transcriptions",
             )
 
         try:
@@ -277,6 +343,31 @@ class OpenAICompatibleAdapter:
             "duration": float(seconds or 0.0),
         }
 
+    async def _post_speech(
+        self,
+        provider: Any,
+        api_key: str | None,
+        body: dict[str, Any],
+    ) -> httpx.Response:
+        from app.providers.credentials import scrub
+
+        try:
+            async with make_client(provider, timeout=180.0) as client:
+                return await client.post(
+                    self._audio_url(provider, "speech", str(body["model"])),
+                    json=body,
+                    headers=self._headers(provider, api_key),
+                    params=self._params(provider, api_key),
+                )
+        except httpx.TimeoutException as exc:
+            raise AppError(code="provider.timeout", status_code=504) from exc
+        except httpx.HTTPError as exc:
+            raise AppError(
+                code="provider.call_failed",
+                status_code=502,
+                params={"detail": scrub(provider, str(exc))},
+            ) from exc
+
     async def speech(
         self,
         provider: Any,
@@ -287,8 +378,14 @@ class OpenAICompatibleAdapter:
         fmt: str = "mp3",
         speed: float | None = None,
     ) -> tuple[bytes, str]:
-        """Text-to-speech via ``POST /audio/speech`` -> (audio bytes, mime)."""
-        from app.providers.credentials import decrypt_api_key, scrub
+        """Text-to-speech via ``POST /audio/speech`` -> (audio bytes, mime).
+
+        Some models (``google/gemini-*-tts``, ``heygen/*`` …) accept *only* one
+        ``response_format`` and answer ``400`` otherwise. Instead of failing we
+        read the format the provider asks for from its error message, retry once,
+        and wrap raw PCM into WAV so the browser can play it.
+        """
+        from app.providers.credentials import decrypt_api_key
 
         if self.kind not in AUDIO_KINDS:
             raise AppError(
@@ -310,30 +407,32 @@ class OpenAICompatibleAdapter:
         if speed is not None:
             body["speed"] = float(speed)
 
-        try:
-            async with make_client(provider, timeout=180.0) as client:
-                response = await client.post(
-                    self._audio_url(provider, "speech", model),
-                    json=body,
-                    headers=self._headers(provider, api_key),
-                    params=self._params(provider, api_key),
+        response = await self._post_speech(provider, api_key, body)
+        if response.status_code == 400:
+            wanted = _wanted_format(response.text)
+            if wanted and wanted != body["response_format"]:
+                logger.info(
+                    "model %s only accepts response_format=%s (asked %s); retrying",
+                    model,
+                    wanted,
+                    body["response_format"],
                 )
-        except httpx.TimeoutException as exc:
-            raise AppError(code="provider.timeout", status_code=504) from exc
-        except httpx.HTTPError as exc:
-            raise AppError(
-                code="provider.call_failed",
-                status_code=502,
-                params={"detail": scrub(provider, str(exc))},
-            ) from exc
+                body["response_format"] = wanted
+                response = await self._post_speech(provider, api_key, body)
 
         if response.status_code >= 400:
-            raise AppError(
-                code=_http_code(response.status_code),
-                status_code=502,
-                params={"detail": scrub(provider, response.text[:400])},
+            raise _provider_error(
+                provider,
+                response.status_code,
+                response.text,
+                model=model,
+                endpoint="audio/speech",
             )
-        return response.content, AUDIO_MIME.get(fmt, "audio/mpeg")
+
+        content_type = response.headers.get("content-type", "")
+        if content_type.split(";")[0].strip().lower() == "audio/pcm":
+            return to_wav(response.content, content_type), "audio/wav"
+        return response.content, AUDIO_MIME.get(str(body["response_format"]), "audio/mpeg")
 
     async def stream_chat(
         self,

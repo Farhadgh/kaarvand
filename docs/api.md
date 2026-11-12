@@ -421,15 +421,25 @@ POST /v1/channels
 
 | متد | مسیر | نقش | توضیح |
 |---|---|---|---|
-| GET | `/audio/meta` | همه | محدودیت‌ها: `max_upload_mb`, `max_tts_chars`, `voices`, `formats` |
-| GET | `/audio/presets` | همه | فهرست مدل‌های آماده (whisper-1، tts-1، gpt-4o-mini-tts …) |
-| GET | `/audio/models?kind=stt\|tts` | همه | فهرست اختصاصی مدل‌های صوتی (صفحهٔ `/audio`) |
-| GET | `/models?capability=audio` | همه | همان فهرست مدل‌ها با `audio_kind` و قیمت صوتی (صفحهٔ `/models`) |
+| GET | `/audio/meta` | همه | محدودیت‌ها: `max_upload_mb`, `max_tts_chars`, `voices`, `formats`, `persian_levels` |
+| GET | `/audio/presets` | همه | فهرست مدل‌های آماده با برچسب فارسی (`persian`) |
+| GET | `/audio/models?kind=stt\|tts&persian=verified\|good\|weak\|none\|any` | همه | فهرست اختصاصی مدل‌های صوتی؛ فارسی‌بلدها اول برمی‌گردند |
+| GET | `/models?capability=audio` | همه | همان فهرست مدل‌ها با `audio_kind`، قیمت صوتی و `persian` (صفحهٔ `/models`) |
 | POST | `/audio/transcriptions` | operator | `multipart/form-data`: `file`, `model_id`, `language?`, `prompt?` |
-| POST | `/audio/speech` | operator | JSON: `model_id`, `text` (≤ ۴۰۰۰), `voice`, `format`, `speed?` → فایل صوتی |
+| POST | `/audio/speech` | operator | JSON: `model_id`, `text` (≤ ۴۰۰۰), `voice`, `format` (`mp3\|wav\|opus\|aac\|flac\|pcm`), `speed?` → فایل صوتی |
 | GET | `/audio/speech/estimate` | همه | برآورد هزینه بدون فراخوانی پروایدر |
-| POST | `/models` | owner/admin | افزودن دستی مدل (شامل `audio_kind` و قیمت‌های صوتی) |
+| POST | `/models` | owner/admin | افزودن دستی مدل (شامل `audio_kind`، قیمت‌های صوتی و `persian`) |
+| PATCH | `/models/{id}` | owner/admin | از جمله `persian` برای اصلاح دستی برچسب فارسی |
 | DELETE | `/models/{id}` | owner/admin | حذف مدل از کاتالوگ |
+
+**برچسب فارسی:** هر مدل صوتی فیلد `persian` (سطح سنجیده‌شده)، `persian_score` (امتیاز ۰..۱
+آزمایش رفت‌وبرگشتی) و `persian_note_fa` (جملهٔ فارسی آمادهٔ نمایش) دارد. جزئیات و جدول کامل
+مدل‌ها: [audio.md](audio.md#۷-پشتیبانی-فارسی--سنجیده-نه-حدسزده).
+
+**پاسخ `/audio/speech`:** بدنهٔ صوتی + هدرهای `X-Audio-Format` (قالب واقعی؛ اگر مدل فقط `pcm`
+بدهد `wav` است)، `X-Audio-Voice` (voice واقعی پس از اصلاح)، `X-Cost-Usd`، `X-Cost-Irr`،
+`X-Fx-Rate`، `X-Chars` و `Content-Disposition`.
+
 
 **هزینه‌گذاری:** STT بر اساس **دقیقهٔ صدا** (`models.audio_input_price`، دلار بر دقیقه،
 `ceil` روی ثانیه) و TTS بر اساس **هزار نویسه** (`models.audio_output_price`). هر دو با

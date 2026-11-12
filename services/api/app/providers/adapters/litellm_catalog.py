@@ -82,16 +82,24 @@ async def _merge_openrouter_audio(
         known = by_id.get(model_id)
         if known is not None:
             known.meta = {**(known.meta or {}), "audio_kind": kind}
+            voices = item.get("supported_voices")
+            if isinstance(voices, list) and voices:
+                known.meta["voices"] = [str(voice) for voice in voices]
             continue
+        meta: dict[str, Any] = {
+            "audio_kind": kind,
+            "pricing": item.get("pricing"),
+            "architecture": item.get("architecture"),
+        }
+        voices = item.get("supported_voices")
+        if isinstance(voices, list) and voices:
+            meta["voices"] = [str(voice) for voice in voices]
         model = RemoteModel(
             external_id=model_id,
             display_name=item.get("name"),
-            meta={
-                "audio_kind": kind,
-                "pricing": item.get("pricing"),
-                "architecture": item.get("architecture"),
-            },
+            meta=meta,
         )
+
         models.append(model)
         by_id[model_id] = model
     return models

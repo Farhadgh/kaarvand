@@ -2,6 +2,9 @@
 
 export type AudioKind = "stt" | "tts";
 
+/** Measured Persian support (see services/api/app/audio/languages.py). */
+export type PersianLevel = "verified" | "good" | "weak" | "none" | "unknown";
+
 export type AudioPreset = {
   slug: string;
   external_id: string;
@@ -10,6 +13,7 @@ export type AudioPreset = {
   audio_input_price: string | null;
   audio_output_price: string | null;
   vendor_hint: string | null;
+  persian: PersianLevel | null;
 };
 
 export type AudioModel = {
@@ -23,6 +27,9 @@ export type AudioModel = {
   audio_input_price: string | null;
   audio_output_price: string | null;
   is_enabled: boolean;
+  persian: PersianLevel | null;
+  persian_score: number | null;
+  persian_note_fa: string | null;
 };
 
 export type AudioMeta = {
@@ -31,7 +38,9 @@ export type AudioMeta = {
   voices: string[];
   formats: string[];
   kinds: Record<string, string>;
+  persian_levels: Record<string, string>;
 };
+
 
 export type TranscriptionResult = {
   model_id: string;

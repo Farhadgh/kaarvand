@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import io
+import json
 import uuid
+import wave
 from decimal import Decimal
 from typing import Any
 
@@ -111,9 +114,7 @@ async def test_create_audio_model_sets_flags_and_kind(
     assert row["provider_name"] == provider["name"]
 
 
-async def test_duplicate_audio_model_is_rejected(
-    client: Any, auth_headers: dict[str, str]
-) -> None:
+async def test_duplicate_audio_model_is_rejected(client: Any, auth_headers: dict[str, str]) -> None:
     provider = await make_provider(client, auth_headers)
     await add_model(client, auth_headers, provider["id"])
     again = await client.post(
@@ -186,9 +187,7 @@ async def test_speech_returns_audio_and_bills_per_characters(
     )
 
     respx.post(f"{BASE}/audio/speech").mock(
-        return_value=httpx.Response(
-            200, content=b"ID3fake", headers={"content-type": "audio/mpeg"}
-        )
+        return_value=httpx.Response(200, content=b"ID3fake", headers={"content-type": "audio/mpeg"})
     )
 
     text = "ا" * 2000
@@ -343,9 +342,7 @@ async def test_audio_models_filter(
         audio_output_price="0.015",
     )
     rows = (
-        await client.get(
-            "/v1/audio/models", headers=auth_headers, params={"kind": kind_filter}
-        )
+        await client.get("/v1/audio/models", headers=auth_headers, params={"kind": kind_filter})
     ).json()
     assert rows and all(row["kind"] == kind_filter for row in rows)
 
@@ -366,10 +363,7 @@ async def test_catalog_models_expose_audio_kind_and_price(
         audio_output_price="0.015",
     )
 
-    rows = {
-        row["id"]: row
-        for row in (await client.get("/v1/models", headers=auth_headers)).json()
-    }
+    rows = {row["id"]: row for row in (await client.get("/v1/models", headers=auth_headers)).json()}
     assert rows[stt["id"]]["audio_kind"] == "stt"
     assert rows[stt["id"]]["supports_audio"] is True
     assert Decimal(rows[stt["id"]]["audio_input_price"]) == Decimal("0.006")
@@ -377,12 +371,208 @@ async def test_catalog_models_expose_audio_kind_and_price(
     assert Decimal(rows[tts["id"]]["audio_output_price"]) == Decimal("0.015")
 
     audio_only = (
-        await client.get(
-            "/v1/models", headers=auth_headers, params={"capability": "audio"}
-        )
+        await client.get("/v1/models", headers=auth_headers, params={"capability": "audio"})
     ).json()
     assert {row["id"] for row in audio_only} >= {stt["id"], tts["id"]}
 
 
+@respx.mock
+async def test_speech_retries_with_pcm_and_returns_wav(
+    client: Any, auth_headers: dict[str, str]
+) -> None:
+    """A model that only accepts ``pcm`` must not fail the request.
+
+    ``google/gemini-*-tts`` (and ``heygen/*``) answer ``400`` unless
+    ``response_format="pcm"``; we retry with the demanded format and wrap the raw
+    samples into WAV so the browser can play them.
+    """
+    provider = await make_provider(client, auth_headers)
+    model = await add_model(
+        client,
+        auth_headers,
+        provider["id"],
+        external_id="google/gemini-3.8-flash-tts",
+        audio_kind="tts",
+        audio_input_price=None,
+        audio_output_price="0.0005",
+    )
+
+    route = respx.post(f"{BASE}/audio/speech")
+    route.mock(
+        side_effect=[
+            httpx.Response(
+                400,
+                json={"error": {"message": 'only supports response_format="pcm"'}},
+            ),
+            httpx.Response(
+                200,
+                content=b"\x00\x01" * 2400,
+                headers={"content-type": "audio/pcm;rate=24000;channels=1"},
+            ),
+        ]
+    )
+
+    response = await client.post(
+        "/v1/audio/speech",
+        headers=auth_headers,
+        json={"model_id": model["id"], "text": "سلام دنیا", "voice": "alloy", "format": "mp3"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.content[:4] == b"RIFF"
+    assert response.headers["content-type"].startswith("audio/wav")
+    assert response.headers["x-audio-format"] == "wav"
+    assert route.call_count == 2
+    assert json.loads(route.calls[1].request.content)["response_format"] == "pcm"
 
 
+def test_pcm_is_wrapped_into_playable_wav() -> None:
+    from app.providers.adapters.audio_pcm import to_wav
+
+    wrapped = to_wav(b"\x00\x01" * 100, "audio/pcm;rate=16000;channels=2")
+    assert wrapped[:4] == b"RIFF" and wrapped[8:12] == b"WAVE"
+    with wave.open(io.BytesIO(wrapped), "rb") as handle:
+        assert handle.getframerate() == 16000
+        assert handle.getnchannels() == 2
+    # an already-WAV payload is passed through untouched
+    assert to_wav(wrapped, "audio/wav") is wrapped
+
+
+@respx.mock
+async def test_speech_maps_provider_errors_to_specific_codes(
+    client: Any, auth_headers: dict[str, str]
+) -> None:
+    """No more «خطای نامشخص»: every rejection carries a translatable code + detail."""
+    provider = await make_provider(client, auth_headers)
+    model = await add_model(
+        client,
+        auth_headers,
+        provider["id"],
+        external_id="tts-1",
+        audio_kind="tts",
+        audio_input_price=None,
+        audio_output_price="0.015",
+    )
+    payload = {"model_id": model["id"], "text": "سلام", "voice": "alloy", "format": "mp3"}
+
+    route = respx.post(f"{BASE}/audio/speech")
+    route.mock(return_value=httpx.Response(429, json={"error": "slow down"}))
+    throttled = await client.post("/v1/audio/speech", headers=auth_headers, json=payload)
+    assert throttled.status_code == 502
+    assert throttled.json()["error"]["code"] == "provider.rate_limited"
+
+    route.mock(return_value=httpx.Response(400, json={"error": {"message": "bad voice"}}))
+    rejected = await client.post("/v1/audio/speech", headers=auth_headers, json=payload)
+    assert rejected.status_code == 502
+    body = rejected.json()["error"]
+    assert body["code"] == "provider.rejected"
+    assert "bad voice" in json.dumps(body, ensure_ascii=False)
+
+
+async def test_audio_models_expose_measured_persian_support(
+    client: Any, auth_headers: dict[str, str]
+) -> None:
+    """TTS models carry the probe verdict, and Persian-capable ones sort first."""
+    provider = await make_provider(client, auth_headers)
+    persian_tts = await add_model(
+        client,
+        auth_headers,
+        provider["id"],
+        external_id="elevenlabs/eleven-v3",
+        audio_kind="tts",
+        audio_input_price=None,
+        audio_output_price="0.08",
+    )
+    english_tts = await add_model(
+        client,
+        auth_headers,
+        provider["id"],
+        external_id="hexgrad/kokoro-82m",
+        audio_kind="tts",
+        audio_input_price=None,
+        audio_output_price="0.00062",
+    )
+    unknown_tts = await add_model(
+        client,
+        auth_headers,
+        provider["id"],
+        external_id="vendor/brand-new-tts",
+        audio_kind="tts",
+        audio_input_price=None,
+        audio_output_price="0.01",
+    )
+
+    rows = {
+        row["id"]: row
+        for row in (await client.get("/v1/audio/models", headers=auth_headers)).json()
+    }
+    assert rows[persian_tts["id"]]["persian"] == "verified"
+    assert rows[persian_tts["id"]]["persian_score"] == 0.98
+    assert rows[persian_tts["id"]]["persian_note_fa"]
+    assert rows[english_tts["id"]]["persian"] == "none"
+    assert rows[unknown_tts["id"]]["persian"] is None
+
+    order = [
+        row["id"] for row in (await client.get("/v1/audio/models", headers=auth_headers)).json()
+    ]
+    assert order.index(persian_tts["id"]) < order.index(unknown_tts["id"])
+
+    only_persian = (
+        await client.get("/v1/audio/models", headers=auth_headers, params={"persian": "verified"})
+    ).json()
+    assert persian_tts["id"] in [row["id"] for row in only_persian]
+    assert all(row["persian"] == "verified" for row in only_persian)
+
+    # the same verdict travels with the panel's model list
+    catalog = {
+        row["id"]: row
+        for row in (
+            await client.get("/v1/models", headers=auth_headers, params={"limit": 500})
+        ).json()
+    }
+    assert catalog[persian_tts["id"]]["persian"] == "verified"
+    assert catalog[english_tts["id"]]["persian"] == "none"
+
+
+async def test_operator_can_override_persian_verdict(
+    client: Any, auth_headers: dict[str, str]
+) -> None:
+    provider = await make_provider(client, auth_headers)
+    model = await add_model(
+        client,
+        auth_headers,
+        provider["id"],
+        external_id="hexgrad/kokoro-82m",
+        audio_kind="tts",
+        audio_input_price=None,
+        audio_output_price="0.00062",
+    )
+    patched = await client.patch(
+        f"/v1/models/{model['id']}", headers=auth_headers, json={"persian": "good"}
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["persian"] == "good"
+
+    rows = {
+        row["id"]: row
+        for row in (await client.get("/v1/audio/models", headers=auth_headers)).json()
+    }
+    assert rows[model["id"]]["persian"] == "good"
+
+    cleared = await client.patch(
+        f"/v1/models/{model['id']}", headers=auth_headers, json={"persian": "unknown"}
+    )
+    assert cleared.json()["persian"] == "none"  # back to the measured verdict
+
+
+async def test_audio_meta_lists_pcm_and_persian_labels(
+    client: Any, auth_headers: dict[str, str]
+) -> None:
+    meta = (await client.get("/v1/audio/meta", headers=auth_headers)).json()
+    assert "pcm" in meta["formats"]
+    assert meta["persian_levels"]["verified"]
+    presets = {
+        row["slug"]: row
+        for row in (await client.get("/v1/audio/presets", headers=auth_headers)).json()
+    }
+    assert presets["openrouter/eleven-v3"]["persian"] == "verified"
+    assert presets["openrouter/kokoro-82m"]["persian"] == "none"

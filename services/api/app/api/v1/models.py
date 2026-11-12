@@ -60,6 +60,10 @@ def model_out(model: Model) -> ModelOut:
     out.audio_kind = audio_kind_of(model)
     # a model that accepts audio in chat but has no dedicated speech endpoint
     out.audio_chat = bool(model.supports_audio and out.audio_kind is None)
+    if out.audio_kind is not None:
+        from app.audio.service import persian_level
+
+        out.persian = persian_level(model, out.audio_kind)
     return out
 
 
@@ -125,8 +129,18 @@ async def update_model(
     user: User = Depends(admin_only),
 ) -> ModelOut:
     model = await get_model(db, user, model_id)
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    persian = changes.pop("persian", None)
+    for key, value in changes.items():
         setattr(model, key, value)
+    if persian is not None:
+        # the Persian verdict is a manual override stored next to the probe data
+        meta = dict(model.meta or {})
+        if persian == "unknown":
+            meta.pop("persian", None)
+        else:
+            meta["persian"] = persian
+        model.meta = meta
     await db.flush()
     return model_out(model)
 
@@ -184,6 +198,8 @@ async def create_model(
         meta["audio_kind"] = payload.audio_kind
     if payload.voices:
         meta["voices"] = payload.voices
+    if payload.persian and payload.persian != "unknown":
+        meta["persian"] = payload.persian
 
     model = Model(
         provider_id=provider.id,

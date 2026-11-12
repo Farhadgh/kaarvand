@@ -9,12 +9,50 @@ import type {
   AudioMeta,
   AudioModel,
   AudioPreset,
+  PersianLevel,
   Provider,
   SpeechEstimate,
   TranscriptionResult,
 } from "@/lib/types";
 
 type Tab = "stt" | "tts";
+
+/** Tone + short label for a measured Persian verdict (null = never probed). */
+const PERSIAN_TONE: Record<PersianLevel, string> = {
+  verified: "bg-emerald-50 text-emerald-700",
+  good: "bg-teal-50 text-teal-700",
+  weak: "bg-amber-50 text-amber-700",
+  none: "bg-rose-50 text-rose-700",
+  unknown: "bg-ink-100 text-ink-600",
+};
+
+const PERSIAN_SHORT: Record<PersianLevel, string> = {
+  verified: "فارسی ✓",
+  good: "فارسی ~",
+  weak: "فارسی ضعیف",
+  none: "فارسی ✗",
+  unknown: "فارسی ؟",
+};
+
+function PersianBadge({
+  level,
+  score,
+  className = "",
+}: {
+  level: PersianLevel | null;
+  score?: number | null;
+  className?: string;
+}) {
+  if (!level) return null;
+  return (
+    <span
+      className={`badge ${PERSIAN_TONE[level]} ${className}`}
+      title={score != null ? `امتیاز آزمایش: ${score}` : undefined}
+    >
+      {PERSIAN_SHORT[level]}
+    </span>
+  );
+}
 
 /** provider kinds whose adapter implements /audio/transcriptions + /audio/speech */
 const AUDIO_CAPABLE_KINDS = [
@@ -175,10 +213,11 @@ function SttPanel({
       />
       <div className="card-body space-y-3">
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="مدل">
+          <Field label="مدل" hint="همهٔ مدل‌های گفتار→متن آزمایش‌شده فارسی را درست می‌نویسند">
             <select className="input" value={modelId} onChange={(e) => setModelId(e.target.value)}>
               {models.map((model) => (
                 <option key={model.id} value={model.id}>
+                  {model.persian === "verified" ? "✓ " : model.persian === "none" ? "✗ " : ""}
                   {model.display_name_fa ?? model.external_id} — {model.provider_name}
                 </option>
               ))}
@@ -245,9 +284,26 @@ function TtsPanel({
   const [estimate, setEstimate] = useState<SpeechEstimate | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [lastMeta, setLastMeta] = useState<SpeechEstimate | null>(null);
+  const [onlyPersian, setOnlyPersian] = useState(false);
 
   const selected = models.find((model) => model.id === modelId);
   const voices = selected?.voices.length ? selected.voices : meta.voices;
+  // Persian-capable first: a model that cannot read Persian is useless here.
+  const visible = onlyPersian
+    ? models.filter((model) => model.persian === "verified" || model.persian === "good")
+    : models;
+
+  function togglePersian() {
+    const next = !onlyPersian;
+    setOnlyPersian(next);
+    const allowed = next
+      ? models.filter((model) => model.persian === "verified" || model.persian === "good")
+      : models;
+    if (allowed.length > 0 && !allowed.some((model) => model.id === modelId)) {
+      setModelId(allowed[0].id);
+      setVoice(allowed[0].voices[0] ?? "alloy");
+    }
+  }
 
   async function estimateCost() {
     if (!modelId || !text.trim()) {
@@ -316,7 +372,7 @@ function TtsPanel({
       />
       <div className="card-body space-y-3">
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="مدل">
+          <Field label="مدل" hint="برچسب «فارسی ✓» یعنی آزمایش شده و فارسی را روان می‌خواند">
             <select
               className="input"
               value={modelId}
@@ -326,14 +382,21 @@ function TtsPanel({
                 setVoice(next?.voices[0] ?? "alloy");
               }}
             >
-              {models.map((model) => (
+              {visible.map((model) => (
                 <option key={model.id} value={model.id}>
+                  {model.persian === "verified"
+                    ? "✓ "
+                    : model.persian === "good"
+                      ? "~ "
+                      : model.persian === "none"
+                        ? "✗ "
+                        : ""}
                   {model.display_name_fa ?? model.external_id} — {model.provider_name}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="صدا (voice)">
+          <Field label="صدا (voice)" hint="هر مدل صداهای خودش را دارد">
             <select className="input" value={voice} onChange={(e) => setVoice(e.target.value)}>
               {voices.map((item) => (
                 <option key={item} value={item}>
@@ -342,6 +405,27 @@ function TtsPanel({
               ))}
             </select>
           </Field>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-sm text-ink-700">
+            <input
+              type="checkbox"
+              checked={onlyPersian}
+              onChange={togglePersian}
+              className="h-4 w-4"
+            />
+            فقط مدل‌هایی که فارسی را می‌خوانند
+          </label>
+          {selected ? <PersianBadge level={selected.persian} score={selected.persian_score} /> : null}
+          {selected?.persian_note_fa ? (
+            <span className="text-xs text-ink-500">{selected.persian_note_fa}</span>
+          ) : null}
+          {selected && !selected.persian ? (
+            <span className="text-xs text-ink-500">
+              پشتیبانی فارسی این مدل آزمایش نشده است؛ با یک متن فارسی امتحان کنید.
+            </span>
+          ) : null}
         </div>
 
         <Field
@@ -360,7 +444,14 @@ function TtsPanel({
         </Field>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="قالب فایل">
+          <Field
+            label="قالب فایل"
+            hint={
+              format === "pcm"
+                ? "pcm خام در مرورگر پخش نمی‌شود؛ سرور آن را خودکار به wav تبدیل می‌کند"
+                : undefined
+            }
+          >
             <select className="input" value={format} onChange={(e) => setFormat(e.target.value)}>
               {meta.formats.map((item) => (
                 <option key={item} value={item}>
@@ -538,6 +629,13 @@ export function AddModelCard({
               >
                 {presets.map((preset) => (
                   <option key={preset.slug} value={preset.slug}>
+                    {preset.persian === "verified"
+                      ? "✓ "
+                      : preset.persian === "good"
+                        ? "~ "
+                        : preset.persian === "none"
+                          ? "✗ "
+                          : ""}
                     {preset.label_fa} ({preset.kind === "stt" ? "گفتار→متن" : "متن→گفتار"})
                   </option>
                 ))}
