@@ -2,6 +2,27 @@
 
 هر قدم با «شاهد» ثبت شده است؛ یعنی چیزی که واقعاً اجرا شده، نه ادعا.
 
+## رفع باگ — حلقهٔ ریدایرکت نشست (`/` ↔ `/login`) ✔
+
+**نشانه:** پنل با مرورگری که قبلاً لاگین شده بود باز نمی‌شد (صفحهٔ سفید یا
+`ERR_TOO_MANY_REDIRECTS`) ولی مرورگر تازه/ناشناس درست کار می‌کرد. لاگ nginx:
+۸۵ × `GET /` با `307` و ۸۲ × `GET /login` با `307`.
+
+**علت:** عمر کوکی `ob_access` ۶۰ دقیقه بود ولی عمر توکن access فقط ۱۵ دقیقه
+(`access_token_ttl_min`)، و هیچ مسیر تازه‌سازی وجود نداشت. نتیجه: `middleware`
+وجود کوکی را «لاگین» می‌دید و `/login` را به `/` می‌فرستاد، ولی layout پنل از
+`/auth/me` پاسخ `401` می‌گرفت و به `/login` برمی‌گشت → حلقه، تا ۷ روز (عمر کوکی
+refresh).
+
+| فایل | تغییر |
+|---|---|
+| `apps/web/middleware.ts` | کوکی access نیست ولی refresh هست → `/api/auth/refresh`؛ `/login` فقط با کوکی access و بدون `?next` به `/` می‌پرد |
+| `apps/web/app/api/auth/refresh/route.ts` | **جدید** — تازه‌سازی بی‌صدا با `POST /v1/auth/refresh` و ست‌کردن کوکی‌ها روی همان `307` (Location نسبی، مستقل از دامنه/پروکسی) |
+| `apps/web/app/api/auth/expired/route.ts` | **جدید** — پاک‌کردن هر دو کوکی و رفتن به `/login?next=…` |
+| `apps/web/app/(panel)/layout.tsx` | `401` → `/api/auth/expired`؛ خطای شبکه → کارت «ارتباط با سرور برقرار نشد» بدون ریدایرکت (حلقه ممکن نیست) |
+| `apps/web/app/api/auth/login/route.ts` | `maxAge` کوکی access از `expires_in` پاسخ API (۹۰۰−۶۰ = ۸۴۰ ثانیه) به‌جای ۳۶۰۰ ثابت |
+| `apps/web/lib/api-config.ts` | `accessMaxAge()` و `safeNextPath()` (جلوگیری از open-redirect در `?next`) |
+
 ## قدم ۱۴ — مدل‌های صوتی (STT + TTS) ✔
 
 **انجام شد:** تبدیل گفتار به متن و متن به گفتار، با همان زیرساخت پروایدر/قیمت/دفتر مصرف.

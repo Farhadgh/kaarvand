@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { ACCESS_COOKIE, API_BASE, REFRESH_COOKIE } from "@/lib/api-config";
+import { ACCESS_COOKIE, API_BASE, REFRESH_COOKIE, accessMaxAge } from "@/lib/api-config";
 
 /** Self-hosted installs often run plain HTTP, so follow the real request scheme. */
 function isSecure(request: Request): boolean {
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     sameSite: "lax",
     secure,
     path: "/",
-    maxAge: 60 * 60,
+    maxAge: accessMaxAge(data.expires_in as number | undefined),
   });
   out.cookies.set(REFRESH_COOKIE, data.refresh_token as string, {
     httpOnly: true,

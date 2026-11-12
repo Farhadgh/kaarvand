@@ -109,3 +109,4 @@ sudo -u postgres pg_restore -d kaarvand --clean /root/kaarvand-YYYY-MM-DD.dump
 | `env` در `/v1/meta` هنوز `dev` است | متغیر را `APP_APP_ENV` بگذارید (نه `APP_ENV`) |
 | پنل ۴۰۴ روی `/healthz` | `location = /healthz` در بلاک ۴۴۳ nginx لازم است |
 | کوکی ست نمی‌شود | `X-Forwarded-Proto` در nginx یا `COOKIE_SECURE` |
+| `/` و `/login` پشت‌سرهم `307` می‌دهند (صفحهٔ سفید) | کوکی کهنه در مرورگر؛ `ob_access`/`ob_refresh` را پاک کنید — از این نسخه، `middleware` نشست را خودکار تازه می‌کند و `401` به `/api/auth/expired` می‌رود |
