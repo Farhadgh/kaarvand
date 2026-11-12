@@ -12,6 +12,13 @@ import type { AudioPreset, Model, Provider } from "@/lib/types";
 
 type Probe = { text: string; tokens_in: number; tokens_out: number; cost_irr: number };
 
+/**
+ * How many rows the table renders at once. Kept high enough that small catalogs (a few hundred
+ * models, where audio models usually sort last) are fully visible; anything beyond that is
+ * reachable through the search box or the capability filter.
+ */
+const ROW_LIMIT = 500;
+
 /** `0.0060000000` -> `0.006 $/دقیقه` (STT) or `0.015 $/۱k نویسه` (TTS). */
 function audioPriceLabel(model: Model): string {
   const clean = (value: string | null) => (value === null ? "—" : String(Number(value)));
@@ -47,6 +54,7 @@ export function ModelsTable({
     if (capability && !model[`supports_${capability}` as keyof Model]) return false;
     return true;
   });
+  const audioCount = models.filter((model) => model.supports_audio).length;
 
   async function act(key: string, task: () => Promise<unknown>) {
     setBusy(key);
@@ -112,6 +120,16 @@ export function ModelsTable({
           <option value="stream">استریم</option>
         </select>
         <span className="muted">{formatNumber(filtered.length)} مدل</span>
+        {audioCount > 0 ? (
+          <button
+            type="button"
+            className="btn-ghost !px-3 !py-1.5 text-xs"
+            onClick={() => setCapability("audio")}
+            title="فقط مدل‌های گفتار و صدا"
+          >
+            صوتی: {formatNumber(audioCount)}
+          </button>
+        ) : null}
         {canEdit ? (
           <button
             type="button"
@@ -149,7 +167,7 @@ export function ModelsTable({
                 </td>
               </tr>
             ) : (
-              filtered.slice(0, 200).map((model) => (
+              filtered.slice(0, ROW_LIMIT).map((model) => (
                 <tr key={model.id} className="hover:bg-ink-50/60">
                   <td className="td">
                     <div className="font-medium text-ink-900" dir="ltr">
@@ -219,6 +237,13 @@ export function ModelsTable({
           </tbody>
         </table>
       </div>
+
+      {filtered.length > ROW_LIMIT ? (
+        <p className="muted mt-2 text-xs">
+          نمایش {formatNumber(ROW_LIMIT)} از {formatNumber(filtered.length)} مدل — برای دیدن بقیه
+          از جست‌وجو یا فیلتر قابلیت استفاده کنید.
+        </p>
+      ) : null}
     </div>
   );
 }
