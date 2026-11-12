@@ -17,7 +17,14 @@ import type {
 type Tab = "stt" | "tts";
 
 /** provider kinds whose adapter implements /audio/transcriptions + /audio/speech */
-const AUDIO_CAPABLE_KINDS = ["openai", "openai_compatible", "groq", "together", "azure_openai"];
+const AUDIO_CAPABLE_KINDS = [
+  "openai",
+  "openai_compatible",
+  "groq",
+  "together",
+  "azure_openai",
+  "openrouter",
+];
 
 export function AudioClient({
   models,

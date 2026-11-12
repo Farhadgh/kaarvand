@@ -99,6 +99,22 @@ def parse_models(provider: Any, payload: dict[str, Any]) -> list[RemoteModel]:
     return _parse_openai_style(payload)
 
 
+def _audio_kind_of(architecture: dict[str, Any]) -> str | None:
+    """OpenRouter lists dedicated speech models through ``output_modalities``.
+
+    ``audio->transcription`` means a speech-to-text endpoint model and
+    ``text->speech`` a text-to-speech one. Chat models that merely accept audio
+    input (``input_modalities`` contains ``audio``) are not listed here on
+    purpose: they answer through ``/chat/completions``, not the audio endpoints.
+    """
+    outputs = {str(item).lower() for item in architecture.get("output_modalities") or []}
+    if "transcription" in outputs:
+        return "stt"
+    if "speech" in outputs:
+        return "tts"
+    return None
+
+
 def _parse_openai_style(payload: dict[str, Any]) -> list[RemoteModel]:
     out: list[RemoteModel] = []
     for item in payload.get("data") or []:
@@ -106,6 +122,14 @@ def _parse_openai_style(payload: dict[str, Any]) -> list[RemoteModel]:
         if not model_id:
             continue
         architecture = item.get("architecture") or {}
+        meta: dict[str, Any] = {
+            key: value
+            for key, value in item.items()
+            if key in {"owned_by", "created", "pricing", "architecture"}
+        }
+        audio_kind = _audio_kind_of(architecture)
+        if audio_kind:
+            meta["audio_kind"] = audio_kind
         out.append(
             RemoteModel(
                 external_id=model_id,
@@ -113,11 +137,7 @@ def _parse_openai_style(payload: dict[str, Any]) -> list[RemoteModel]:
                 context_window=item.get("context_length") or item.get("context_window"),
                 max_output=item.get("max_completion_tokens"),
                 modalities=list(architecture.get("input_modalities") or []),
-                meta={
-                    key: value
-                    for key, value in item.items()
-                    if key in {"owned_by", "created", "pricing", "architecture"}
-                },
+                meta=meta,
             )
         )
     return out

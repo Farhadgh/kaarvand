@@ -84,6 +84,8 @@ export interface Model {
   audio_input_price: string | null;
   audio_output_price: string | null;
   audio_kind: "stt" | "tts" | null;
+  /** chat model that accepts audio input but has no dedicated speech endpoint */
+  audio_chat: boolean;
   price_currency: string;
   price_source: string | null;
   price_synced_at: string | null;

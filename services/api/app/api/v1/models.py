@@ -58,6 +58,8 @@ def audio_kind_of(model: Model) -> str | None:
 def model_out(model: Model) -> ModelOut:
     out = ModelOut.model_validate(model)
     out.audio_kind = audio_kind_of(model)
+    # a model that accepts audio in chat but has no dedicated speech endpoint
+    out.audio_chat = bool(model.supports_audio and out.audio_kind is None)
     return out
 
 

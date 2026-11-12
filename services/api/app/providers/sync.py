@@ -34,6 +34,15 @@ async def sync_models(db: AsyncSession, provider: Provider) -> tuple[int, int, i
     updated = 0
     for item in remote:
         flags = infer_flags(item.external_id, rules)
+        audio_kind = (item.meta or {}).get("audio_kind")
+        if audio_kind in {"stt", "tts"}:
+            # Dedicated speech models answer through /audio/*, not /chat/completions.
+            flags["supports_audio"] = True
+            flags["supports_tools"] = False
+            flags["supports_stream"] = False
+        elif "audio" in (item.modalities or []):
+            # Multimodal chat model: it accepts audio, but stays a chat model.
+            flags["supports_audio"] = True
         model = existing.get(item.external_id)
         if model is None:
             db.add(
@@ -93,10 +102,23 @@ async def sync_prices(db: AsyncSession, provider: Provider) -> tuple[int, str]:
             model.input_price != price.input_price
             or model.output_price != price.output_price
             or model.cached_input_price != price.cached_input_price
+            or (
+                price.audio_input_price is not None
+                and model.audio_input_price != price.audio_input_price
+            )
+            or (
+                price.audio_output_price is not None
+                and model.audio_output_price != price.audio_output_price
+            )
         )
         model.input_price = price.input_price
         model.output_price = price.output_price
         model.cached_input_price = price.cached_input_price
+        # never wipe a manual audio price when the provider omits one
+        if price.audio_input_price is not None:
+            model.audio_input_price = price.audio_input_price
+        if price.audio_output_price is not None:
+            model.audio_output_price = price.audio_output_price
         model.price_currency = price.currency
         model.price_source = price.source
         model.price_synced_at = now
@@ -111,6 +133,8 @@ async def sync_prices(db: AsyncSession, provider: Provider) -> tuple[int, str]:
                     output_price=price.output_price,
                     cached_input_price=price.cached_input_price,
                     image_price=price.image_price,
+                    audio_input_price=model.audio_input_price,
+                    audio_output_price=model.audio_output_price,
                     currency=price.currency,
                     source=price.source,
                 )

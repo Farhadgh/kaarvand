@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from decimal import Decimal
 from typing import Any
 
 from app.providers.adapters.chat_common import make_client
@@ -39,6 +40,28 @@ async def list_models(provider: Any, *, timeout: float = 30.0) -> list[RemoteMod
     return parse_models(provider, payload)
 
 
+_AUDIO_STEP = Decimal("0.0000000001")
+
+
+def _audio_prices(
+    pricing: dict[str, Any], architecture: dict[str, Any]
+) -> tuple[Decimal | None, Decimal | None]:
+    """Convert OpenRouter audio pricing to the catalog's units.
+
+    OpenRouter quotes speech-to-text per **audio second** and text-to-speech per
+    **character**; the catalog stores STT per minute and TTS per 1000 characters.
+    Models that bill per generated second (e.g. music models) cannot be expressed
+    in those units, so they keep no audio price and are priced manually.
+    """
+    outputs = {str(item).lower() for item in architecture.get("output_modalities") or []}
+    prompt = to_decimal(pricing.get("prompt") or pricing.get("input"))
+    if "transcription" in outputs and prompt is not None:
+        return (prompt * 60).quantize(_AUDIO_STEP), None
+    if "speech" in outputs and prompt is not None and prompt > 0:
+        return None, (prompt * 1000).quantize(_AUDIO_STEP)
+    return None, None
+
+
 def _prices_from_payload(payload: dict[str, Any]) -> list[RemotePrice]:
     prices: list[RemotePrice] = []
     for item in payload.get("data") or payload.get("models") or []:
@@ -46,6 +69,7 @@ def _prices_from_payload(payload: dict[str, Any]) -> list[RemotePrice]:
         pricing = item.get("pricing") or {}
         if not model_id or not pricing:
             continue
+        audio_input, audio_output = _audio_prices(pricing, item.get("architecture") or {})
         prices.append(
             RemotePrice(
                 external_id=str(model_id).replace("models/", "", 1),
@@ -53,6 +77,8 @@ def _prices_from_payload(payload: dict[str, Any]) -> list[RemotePrice]:
                 output_price=to_decimal(pricing.get("completion") or pricing.get("output")),
                 cached_input_price=to_decimal(pricing.get("input_cache_read")),
                 image_price=to_decimal(pricing.get("image")),
+                audio_input_price=audio_input,
+                audio_output_price=audio_output,
                 source="provider",
             )
         )

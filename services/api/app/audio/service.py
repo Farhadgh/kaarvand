@@ -45,8 +45,14 @@ DEFAULT_VOICES = [
     "verse",
 ]
 
-_STT_RE = re.compile(r"whisper|transcrib|\bstt\b|\basr\b|speech[-_ ]?to[-_ ]?text", re.IGNORECASE)
-_TTS_RE = re.compile(r"\btts\b|text[-_ ]?to[-_ ]?speech|tts-\d|mini-tts|\bvoice\b", re.IGNORECASE)
+_STT_RE = re.compile(
+    r"whisper|transcrib|\bstt\b|\basr\b|scribe|parakeet|chirp|speech[-_ ]?to[-_ ]?text",
+    re.IGNORECASE,
+)
+_TTS_RE = re.compile(
+    r"\btts\b|text[-_ ]?to[-_ ]?speech|tts-\d|mini-tts|\bvoice\b|eleven|kokoro|aura-\d",
+    re.IGNORECASE,
+)
 
 
 def infer_kind(external_id: str, meta: dict[str, Any] | None = None) -> str | None:

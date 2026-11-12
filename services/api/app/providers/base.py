@@ -30,6 +30,11 @@ class RemotePrice:
     output_price: Decimal | None = None
     cached_input_price: Decimal | None = None
     image_price: Decimal | None = None
+    # speech models are priced per unit, not per token:
+    #   audio_input_price  -> USD per audio MINUTE (STT)
+    #   audio_output_price -> USD per 1000 CHARACTERS (TTS)
+    audio_input_price: Decimal | None = None
+    audio_output_price: Decimal | None = None
     currency: str = "USD"
     source: str = "provider"
 

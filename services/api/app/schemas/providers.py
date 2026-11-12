@@ -120,6 +120,8 @@ class ModelOut(ORMModel):
     audio_input_price: Decimal | None = None
     audio_output_price: Decimal | None = None
     audio_kind: str | None = None
+    # chat model that accepts audio input (no dedicated STT/TTS endpoint)
+    audio_chat: bool = False
     price_currency: str
     price_source: str | None
     price_synced_at: Any | None

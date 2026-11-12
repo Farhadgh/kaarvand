@@ -39,7 +39,10 @@ OPENAI_KINDS = {
 AZURE_API_VERSION = "2024-06-01"
 
 # provider kinds that expose the OpenAI audio API (/audio/transcriptions, /audio/speech)
-AUDIO_KINDS = {"openai", "openai_compatible", "groq", "azure_openai", "together"}
+AUDIO_KINDS = {"openai", "openai_compatible", "groq", "azure_openai", "together", "openrouter"}
+
+# OpenRouter's transcription endpoint wants JSON + base64 audio (not multipart)
+OPENROUTER_AUDIO_FORMATS = {"wav", "mp3", "flac", "m4a", "ogg", "webm", "aac"}
 
 AUDIO_MIME = {
     "mp3": "audio/mpeg",
@@ -106,6 +109,92 @@ class OpenAICompatibleAdapter:
         headers.pop("Content-Type", None)
         return headers
 
+    @staticmethod
+    def _audio_format(filename: str, mime: str | None) -> str:
+        suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        if suffix in OPENROUTER_AUDIO_FORMATS:
+            return suffix
+        by_mime = {
+            "audio/wav": "wav",
+            "audio/mpeg": "mp3",
+            "audio/mp3": "mp3",
+            "audio/flac": "flac",
+            "audio/mp4": "m4a",
+            "audio/ogg": "ogg",
+            "audio/webm": "webm",
+            "audio/aac": "aac",
+        }
+        return by_mime.get((mime or "").split(";")[0].strip().lower(), "webm")
+
+    async def _transcribe_openrouter(
+        self,
+        provider: Any,
+        *,
+        model: str,
+        content: bytes,
+        filename: str,
+        mime: str | None,
+        language: str | None,
+        prompt: str | None,
+    ) -> dict[str, Any]:
+        """OpenRouter wants ``{"model", "input_audio": {"data", "format"}}`` (base64)."""
+        import base64
+
+        from app.providers.credentials import decrypt_api_key, scrub
+
+        base = base_url(provider)
+        if not base:
+            raise AppError(code="provider.missing_base_url", status_code=422)
+
+        api_key = decrypt_api_key(provider)
+        body: dict[str, Any] = {
+            "model": model,
+            "input_audio": {
+                "data": base64.b64encode(content).decode("ascii"),
+                "format": self._audio_format(filename, mime),
+            },
+        }
+        if language:
+            body["language"] = language
+        if prompt:
+            body["prompt"] = prompt[:1000]
+
+        try:
+            async with make_client(provider, timeout=180.0) as client:
+                response = await client.post(
+                    self._audio_url(provider, "transcriptions", model),
+                    json=body,
+                    headers=self._headers(provider, api_key),
+                    params=self._params(provider, api_key),
+                )
+        except httpx.TimeoutException as exc:
+            raise AppError(code="provider.timeout", status_code=504) from exc
+        except httpx.HTTPError as exc:
+            raise AppError(
+                code="provider.call_failed",
+                status_code=502,
+                params={"detail": scrub(provider, str(exc))},
+            ) from exc
+
+        if response.status_code >= 400:
+            raise AppError(
+                code=_http_code(response.status_code),
+                status_code=502,
+                params={"detail": scrub(provider, response.text[:400])},
+            )
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise AppError(code="audio.invalid_response", status_code=502) from exc
+        usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+        seconds = usage.get("seconds") or usage.get("duration") or payload.get("duration")
+        return {
+            "text": str(payload.get("text") or ""),
+            "language": payload.get("language"),
+            "duration": float(seconds or 0.0),
+        }
+
     async def transcribe(
         self,
         provider: Any,
@@ -117,7 +206,7 @@ class OpenAICompatibleAdapter:
         language: str | None = None,
         prompt: str | None = None,
     ) -> dict[str, Any]:
-        """Speech-to-text via ``POST /audio/transcriptions`` (multipart)."""
+        """Speech-to-text via ``POST /audio/transcriptions``."""
         from app.providers.credentials import decrypt_api_key, scrub
 
         if self.kind not in AUDIO_KINDS:
@@ -125,6 +214,16 @@ class OpenAICompatibleAdapter:
                 code="audio.unsupported_provider",
                 status_code=422,
                 params={"kind": self.kind, "supported": sorted(AUDIO_KINDS)},
+            )
+        if self.kind == "openrouter":
+            return await self._transcribe_openrouter(
+                provider,
+                model=model,
+                content=content,
+                filename=filename,
+                mime=mime,
+                language=language,
+                prompt=prompt,
             )
         base = base_url(provider)
         if not base:

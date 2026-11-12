@@ -27,6 +27,13 @@ function audioPriceLabel(model: Model): string {
   return "قیمت‌گذاری نشده";
 }
 
+/** «صوتی · گفتار→متن» / «صوتی · متن→گفتار» / «صوتی (چت)». */
+function audioBadgeLabel(model: Model): string {
+  if (model.audio_kind === "stt") return "صوتی · گفتار→متن";
+  if (model.audio_kind === "tts") return "صوتی · متن→گفتار";
+  return "صوتی (چت)";
+}
+
 export function ModelsTable({
   models,
   providerNames,
@@ -115,7 +122,7 @@ export function ModelsTable({
           <option value="">همه‌ی قابلیت‌ها</option>
           <option value="tools">فراخوانی ابزار</option>
           <option value="vision">بینایی</option>
-          <option value="audio">صوتی (گفتار ↔ متن)</option>
+          <option value="audio">صوتی (گفتار ↔ متن، چت صوتی)</option>
           <option value="reasoning">استدلال</option>
           <option value="stream">استریم</option>
         </select>
@@ -183,10 +190,7 @@ export function ModelsTable({
                       {model.supports_tools ? <Badge value="low" label="ابزار" /> : null}
                       {model.supports_vision ? <Badge value="low" label="بینایی" /> : null}
                       {model.supports_audio ? (
-                        <Badge
-                          value="medium"
-                          label={model.audio_kind === "stt" ? "صوتی · گفتار→متن" : model.audio_kind === "tts" ? "صوتی · متن→گفتار" : "صوتی"}
-                        />
+                        <Badge value="medium" label={audioBadgeLabel(model)} />
                       ) : null}
                       {model.supports_reasoning ? <Badge value="low" label="استدلال" /> : null}
                     </div>
@@ -194,7 +198,7 @@ export function ModelsTable({
                   <td className="td ltr text-xs">{model.input_price ?? "—"}</td>
                   <td className="td ltr text-xs">{model.output_price ?? "—"}</td>
                   <td className="td text-xs">
-                    {model.supports_audio ? (
+                    {model.audio_kind ? (
                       <span className="ltr">{audioPriceLabel(model)}</span>
                     ) : (
                       "—"
@@ -217,7 +221,7 @@ export function ModelsTable({
                     </button>
                   </td>
                   <td className="td">
-                    {model.supports_audio ? (
+                    {model.audio_kind ? (
                       <Link className="btn-ghost !px-2 !py-1 text-xs" href="/audio">
                         آزمایش صدا
                       </Link>
