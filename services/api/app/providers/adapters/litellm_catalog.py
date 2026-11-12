@@ -24,13 +24,21 @@ from app.providers.credentials import decrypt_api_key, scrub
 OPENROUTER_AUDIO_MODALITIES = {"transcription": "stt", "speech": "tts"}
 
 
-async def _get_json(provider: Any, url: str, *, timeout: float) -> dict[str, Any]:
+async def _get_json(
+    provider: Any,
+    url: str,
+    *,
+    timeout: float,
+    params: dict[str, str] | None = None,
+) -> dict[str, Any]:
     api_key = decrypt_api_key(provider)
+    query = {**build_query_params(provider, api_key), **(params or {})}
     async with make_client(provider, timeout=timeout) as client:
         response = await client.get(
             url,
             headers=build_headers(provider, api_key),
-            params=build_query_params(provider, api_key),
+            # an empty dict would wipe a query string carried by ``url``
+            params=query or None,
         )
         response.raise_for_status()
         payload = response.json()
@@ -46,7 +54,10 @@ async def _openrouter_audio_items(provider: Any, *, timeout: float) -> list[dict
     for modality in OPENROUTER_AUDIO_MODALITIES:
         try:
             payload = await _get_json(
-                provider, f"{endpoint}?output_modalities={modality}", timeout=timeout
+                provider,
+                endpoint,
+                timeout=timeout,
+                params={"output_modalities": modality},
             )
         except Exception:  # noqa: BLE001 - discovery is best effort
             continue
