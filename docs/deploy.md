@@ -92,13 +92,41 @@ sudo -u kaarvand git -C /opt/kaarvand reset --hard origin/main
 sudo -u kaarvand /opt/kaarvand/services/api/.venv/bin/pip install -q -e /opt/kaarvand/services/api
 cd /opt/kaarvand/services/api && sudo -u kaarvand .venv/bin/python -m alembic upgrade head
 
+# تأیید: پنل بدون ادمین قفل می‌شود، پس بعد از هر مایگریشن این را ببینید
+sudo -u kaarvand /opt/kaarvand/services/api/.venv/bin/python -m app.cli list-users
+
 # پنل (اگر کد فرانت عوض شده)
 cd /opt/kaarvand/apps/web && sudo -u kaarvand npm ci --no-audit --no-fund && sudo -u kaarvand npm run build
 
 sudo systemctl restart kaarvand-api kaarvand-web kaarvand-scheduler
 ```
 
-## ۴) دستورهای روزمره
+> **چک اجباری بعد از مایگریشن:** خروجی `list-users` باید حداقل یک ردیف با `role=admin` و
+> `active=True` داشته باشد. اگر نداشت، دیپلوی را ادامه ندهید و اول
+> `python -m app.cli promote-admin <email>` را اجرا کنید (بخش ۴).
+
+## ۴) نجات دسترسی ادمین (break glass)
+
+اگر پنل با پیام «این پنل مخصوص مدیران است» بسته شد، رمز و لاگین سالم است و فقط نقش حساب
+در دیتابیس `admin` نیست. دو راه:
+
+```bash
+# ۱) ابزار خود اپ — امن‌ترین راه (app.bypass_rls را ست می‌کند)
+cd /opt/kaarvand/services/api
+sudo -u kaarvand .venv/bin/python -m app.cli list-users
+sudo -u kaarvand .venv/bin/python -m app.cli promote-admin admin@kaarvand.amigok.cloud
+sudo -u kaarvand .venv/bin/python -m app.cli set-password admin@kaarvand.amigok.cloud
+
+# ۲) psql با نقش postgres
+sudo -u postgres psql -d kaarvand \
+  -c "update users set role='admin' where email='admin@kaarvand.amigok.cloud'"
+```
+
+> **چرا `psql` با نقش اپ کار نمی‌کند:** `users` با `FORCE ROW LEVEL SECURITY` محافظت
+> می‌شود؛ بدون `app.bypass_rls='on'` دستور **صفر ردیف** را تغییر می‌دهد و «موفق» برمی‌گردد.
+> همین تله باعث شد مایگریشن `0014` نقش ادمین را عوض نکند (اصلاح: مایگریشن `0016`).
+
+## ۵) دستورهای روزمره
 
 ```bash
 systemctl status kaarvand-api kaarvand-web kaarvand-scheduler
@@ -118,7 +146,7 @@ sudo -u postgres pg_restore -d kaarvand --clean /root/kaarvand-YYYY-MM-DD.dump
 **TLS:** certbot یک تایمر systemd نصب کرده (`systemctl list-timers | grep certbot`) و گواهی
 خودکار تمدید می‌شود. تست: `certbot renew --dry-run`.
 
-## ۵) نکته‌های عملیاتی
+## ۶) نکته‌های عملیاتی
 
 1. **یک worker برای API**: هاب کانکتور درون‌پروسه است؛ اگر `--workers` را زیاد کنید،
    دستگاه‌های کانکتور فقط به یکی از workerها وصل می‌شوند. برای مقیاس، bus مشترک لازم است.
@@ -137,10 +165,12 @@ sudo -u postgres pg_restore -d kaarvand --clean /root/kaarvand-YYYY-MM-DD.dump
    کردید، همان قاعده را نگه دارید (تست `test_catalog.py` این را قفل می‌کند).
 5. `APP_APP_ENV` را از `dev` به `prod` تغییر ندهید مگر آگاهانه؛ `test` فقط برای تست‌ها است.
 
-## ۶) عیب‌یابی سریع
+## ۷) عیب‌یابی سریع
 
 | نشانه | علت رایج |
 |---|---|
+| پنل می‌گوید «این پنل مخصوص مدیران است» | نقش حساب `admin` نیست (بعد از مایگریشن `0014`) → `python -m app.cli promote-admin <email>` |
+| `UPDATE` در `psql` با نقش اپ «موفق» است ولی داده عوض نمی‌شود | `users`/`wallets`/`payments` زیر `FORCE RLS` هستند → `app.bypass_rls='on'` یا نقش `postgres` (بخش ۴) |
 | `ModuleNotFoundError` بعد از نصب | وابستگی در `pyproject.toml` جا افتاده → `pip install -e .` دوباره و اضافه‌کردن به dependencies |
 | `CREATE EXTENSION vector` خطا می‌دهد | `postgresql-16-pgvector` نصب نیست |
 | `pip install -e .` با خطای package discovery | بلوک `[build-system]` + `[tool.setuptools.packages.find]` لازم است |

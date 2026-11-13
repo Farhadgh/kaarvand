@@ -61,6 +61,11 @@ python -c "import os,base64;print(base64.urlsafe_b64encode(os.urandom(32)).decod
   می‌دهد؛ `provider_id`، `base_url`، قیمت دلاری، `price_source` و `markup_percent` در
   پاسخ نیست. `cost_usd` در پاسخ اجراها هم برای مشتری `null` می‌شود.
 - ابزار/پرامپت **سراسری** برای همه فقط‌خواندنی است.
+- نقش در سطح دیتابیس هم اجبار می‌شود: `ck_users_role CHECK (role IN ('admin','user'))`
+  (مایگریشن `0016`). و چون `users` **FORCE RLS** دارد، هر اصلاح نقش باید با
+  `app.bypass_rls='on'` (یا `python -m app.cli promote-admin`) انجام شود؛ وگرنه `UPDATE`
+  صفر ردیف را عوض می‌کند و «موفق» گزارش می‌شود — همان چیزی که یک‌بار ادمین را از پنل
+  بیرون انداخت.
 
 ## ۵) تأیید انسانی (Human-in-the-loop)
 

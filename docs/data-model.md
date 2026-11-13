@@ -1,14 +1,19 @@
 # مدل داده
 
-۴۳ جدول در ۱۵ مایگریشن (`0000` تا `0014`). ستون‌های مشترک همه‌ی جدول‌های دامنه:
+۴۳ جدول در ۱۷ مایگریشن (`0000` تا `0016`). ستون‌های مشترک همه‌ی جدول‌های دامنه:
 `id UUID` (پیش‌فرض `uuid4`)، `created_at`, `updated_at` (به‌جز جدول‌های append-only).
+
+> **قاعدهٔ مهاجرت داده:** جدول‌های زیر RLS با `FORCE ROW LEVEL SECURITY` محافظت می‌شوند،
+> پس هر `UPDATE`/`DELETE` در مایگریشن یا در `psql` که `app.bypass_rls='on'` را ست نکند
+> **صفر ردیف** را تغییر می‌دهد و با موفقیت تمام می‌شود. مایگریشن `0016` برای همین، RLS را
+> موقتاً خاموش/روشن می‌کند؛ از آن الگو استفاده کنید.
 
 ## ۱) هسته و چند-مستأجری
 
 | جدول | ستون‌های کلیدی | نکته |
 |---|---|---|
 | `organizations` | name, slug, timezone, calendar, currency, digits, tax_rate, monthly_budget_irr, settings | پیش‌فرض فارسی: `Asia/Tehran` + `jalali` + `IRR` + ارقام فارسی |
-| `users` | org_id, email?, phone?, full_name, password_hash?, is_phone_verified, role, locale, digits_pref | دو نقش: `admin` (کارمند پلتفرم) و `user` (مشتری). مشتری فقط `phone` دارد؛ یکتایی با ایندکس جزئی روی `(org_id, phone)` و `(org_id, email)` |
+| `users` | org_id, email?, phone?, full_name, password_hash?, is_phone_verified, role, locale, digits_pref | دو نقش: `admin` (کارمند پلتفرم) و `user` (مشتری)، اجبارشده با `CHECK ck_users_role` (مایگریشن `0016`). مشتری فقط `phone` دارد؛ یکتایی با ایندکس جزئی روی `(org_id, phone)` و `(org_id, email)` |
 | `memberships` | org_id, user_id, role | برای کاربر چندسازمانی |
 | `api_keys` | org_id, prefix, hash, scopes | کلید خام هرگز ذخیره نمی‌شود |
 | `sessions` | user_id, refresh_hash, expires_at, revoked_at | چرخش refresh در هر استفاده |

@@ -14,6 +14,12 @@ Two product decisions land here:
 
 Roles collapse to ``admin`` (platform staff) and ``user`` (customer); existing
 rows are migrated in place so no account loses access.
+
+Warning: the two ``UPDATE`` statements below are **silent no-ops on a real
+database**. ``users`` has forced row level security (``0008``) and no tenant is
+bound while alembic runs, so PostgreSQL filters every row out and the statements
+still report success. ``0016`` re-runs the rewrite with row security lifted and
+adds ``ck_users_role``; keep that pattern for future data migrations.
 """
 
 from __future__ import annotations

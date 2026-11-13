@@ -2,6 +2,38 @@
 
 هر قدم با «شاهد» ثبت شده است؛ یعنی چیزی که واقعاً اجرا شده، نه ادعا.
 
+## نقش‌ها: دو مقدار، و پنلی که دیگر قفل نمی‌شود ✔
+
+**مسئله (باگ تولید):** بعد از استقرار فاز ۳، ورود ادمین به پنل با پیام «این پنل مخصوص
+مدیران است» بسته شد، در حالی که رمز و لاگین سالم بود. علت: مایگریشن `0014` نقش قدیمی
+`owner` را با یک `UPDATE` ساده به `admin` تبدیل می‌کرد، اما جدول `users` **RLS اجباری**
+دارد (`FORCE ROW LEVEL SECURITY` از `0008`) و در لحظهٔ مهاجرت هیچ تنانتی bind نبود؛ پس
+PostgreSQL همهٔ ردیف‌ها را فیلتر کرد، دستور **صفر ردیف** را تغییر داد و باز هم «موفق»
+گزارش شد. نتیجه: `alembic_version = 0015` ولی نقش حساب ادمین همان `owner` ماند و
+`require_admin`/گارد پنل او را رد کرد.
+
+**نتیجه:** دادهٔ تولید اصلاح شد (با نقش `postgres`) و برای اینکه تکرار نشود: مایگریشن
+`0016` (همان rewrite، این‌بار با RLS خاموش و بعد دوباره روشن)، `CHECK` با نام
+`ck_users_role` روی ستون `role`، ابزار `python -m app.cli` برای نجات بدون psql، و
+تست‌های `tests/test_roles.py`.
+
+| فایل | تغییر |
+|---|---|
+| `alembic/versions/0016_user_role_guard.py` (جدید) | `NO FORCE`/`DISABLE RLS` → `owner→admin` و بقیه→`user` → `ENABLE`/`FORCE`؛ اگر ادمین فعالی نمانده باشد قدیمی‌ترین حسابِ دارای رمز را ادمین می‌کند؛ سپس `ck_users_role` |
+| `db/models/core.py` | همان `CheckConstraint("role IN ('admin','user')")` در `__table_args__` تا مدل و مایگریشن یکی بمانند |
+| `app/cli.py` (جدید) | `list-users`، `promote-admin <email>`، `set-password <email>`؛ همه با `bypass_rls=True` (بدون آن، همان تلهٔ «صفر ردیف») |
+| `runtime/inbound.py` · `runtime/starter.py` | باقی‌ماندهٔ نقش قدیمی: `User.role != "owner"` → `User.role != ADMIN_ROLE` |
+| `tests/test_roles.py` (جدید) | ۶ تست: ادمین seed شده `admin` می‌ماند، فقط دو نقش در دیتابیس، `owner` با `IntegrityError` رد می‌شود، `/v1/models` برای مهمان ۴۰۱ / مشتری ۴۰۳ / ادمین ۲۰۰، CLI دسترسی پنل را برمی‌گرداند، خطای حساب ناشناس و رمز کوتاه |
+
+**شاهد:** `pytest tests/test_roles.py` → **۶ passed** · `ruff check app tests` پاک.
+**شاهد زنده (تولید):**
+
+```
+update users set role='admin' where email='admin@kaarvand.amigok.cloud'   → UPDATE 1
+select email, role, is_active, (password_hash is not null) from users
+  → admin@kaarvand.amigok.cloud | admin | t | t
+```
+
 ## کاتالوگ مشتری: مدل با قیمت تومانی، بدون افشای پروایدر ✔
 
 **مسئله:** `GET /v1/models` برای هر کاربر واردشده باز بود و شناسه/نام پروایدر، `base_url`،

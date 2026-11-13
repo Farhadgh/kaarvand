@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.crypto import get_secret_box
+from app.core.deps import ADMIN_ROLE
 from app.core.errors import AppError
 from app.db.models import InboundChannel, InboundEvent, Tool, User
 from app.db.session import session_scope
@@ -163,7 +164,7 @@ async def _owner_id(db: AsyncSession, org_id: uuid.UUID) -> uuid.UUID | None:
         await db.execute(
             select(User.id)
             .where(User.org_id == org_id, User.is_active.is_(True))
-            .order_by((User.role != "owner"), User.created_at)
+            .order_by((User.role != ADMIN_ROLE), User.created_at)
             .limit(1)
         )
     ).scalar_one_or_none()

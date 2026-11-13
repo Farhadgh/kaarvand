@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -55,6 +56,10 @@ class User(UUIDPrimaryKey, TimestampMixin, Base):
 
     __tablename__ = "users"
     __table_args__ = (
+        # Two roles only (``admin`` staff / ``user`` customer). Enforced in the
+        # database as well, so a legacy ``owner`` cannot sneak back in through a
+        # migration or a manual SQL statement (see migration 0016).
+        CheckConstraint("role IN ('admin', 'user')", name="ck_users_role"),
         Index(
             "uq_users_org_email",
             "org_id",

@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.core.deps import ADMIN_ROLE
 from app.core.errors import NotFoundError
 from app.db.models import Agent, AgentTask, Run, User
 from app.db.session import session_scope
@@ -142,7 +143,7 @@ async def prepare_task_run(
                 await db.execute(
                     select(User.id)
                     .where(User.org_id == org_id, User.is_active.is_(True))
-                    .order_by((User.role != "owner"), User.created_at)
+                    .order_by((User.role != ADMIN_ROLE), User.created_at)
                     .limit(1)
                 )
             ).scalar_one_or_none()

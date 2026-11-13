@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { Shell } from "@/components/shell";
+import { LogoutButton } from "@/components/logout-button";
 import { Card, EmptyState } from "@/components/ui";
 import { ApiError, serverFetch } from "@/lib/api-server";
 import type { Meta, User } from "@/lib/types";
@@ -56,18 +57,17 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
   // This panel is the admin console: customers live in the client app (OTP).
   // A customer account that somehow has a password must not see provider data.
+  // The account is named so a locked-out admin can see *which* login is wrong,
+  // and the exit is a real POST logout (a GET link used to 405 and trap them).
   if (user.role !== "admin") {
+    const account = user.email || user.phone || user.full_name;
     return (
       <div className="flex min-h-screen items-center justify-center bg-ink-50 px-4">
         <Card className="w-full max-w-md">
           <EmptyState
             title="این پنل مخصوص مدیران است"
-            description="حساب شما یک حساب کاربری (مشتری) است. برای استفاده از کاروند، اپلیکیشن دسکتاپ یا اندروید را باز کنید."
-            action={
-              <a className="btn-primary" href="/api/auth/logout">
-                خروج از حساب
-              </a>
-            }
+            description={`حساب «${account}» یک حساب کاربری (مشتری) است. برای استفاده از کاروند، اپلیکیشن دسکتاپ یا اندروید را باز کنید. اگر این حساب باید به پنل دسترسی داشته باشد، نقش آن در سرور باید admin باشد.`}
+            action={<LogoutButton>ورود با حساب دیگر</LogoutButton>}
           />
         </Card>
       </div>
