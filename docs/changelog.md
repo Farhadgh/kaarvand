@@ -24,8 +24,24 @@
 | `apps/client/src/{App.tsx,lib/api.ts,lib/money.ts}` | مسیر `/models`، تایپ `CatalogModel`، `api.catalog`، `formatTomanValue` |
 | `tests/test_catalog.py` (جدید) | ۸ تست: افشانشدن پروایدر/دلار، ریاضی تومان، اولویت markup، پنهان‌بودن مدل/پروایدر غیرفعال، فیلترها، ۴۰۱/۴۰۳ |
 
-**شاهد:** `pytest tests/test_catalog.py` سبز · `ruff check app tests` پاک ·
-`npm run build` در `apps/client` سبز.
+**شاهد:** `pytest tests/test_catalog.py` سبز (۸ تست) · کل مجموعه **۲۹۴ passed** ·
+`ruff check app tests` پاک · `npm run build` در `apps/client` و `apps/web` سبز.
+
+**شاهد زنده (سرور تولید، بعد از `reset --hard 59d7062` + مایگریشن ۰۰۱۴/۰۰۱۵):**
+
+```
+POST /v1/auth/otp/request   → {"sent":true,…}            (شمارهٔ واقعی، حساب user + کیف پول ساخته شد)
+GET  /v1/catalog/models     → [{"name":"AionLabs: Aion-2.0",…,"price_input_toman":270400,
+                                "price_output_toman":540800,"price_known":true}, …]
+grep provider_id|base_url|input_price|price_source → 0 مورد
+GET  /v1/models (مشتری)     → 403
+GET  /v1/wallet             → {"balance_irr":0,"usd_irr":2600000,"markup_percent":30,
+                                "min_topup_toman":10000,"topup_enabled":false}
+```
+
+عدد ۲۷۰٬۴۰۰ همان ۰٫۸ دلار × ۲٫۶ میلیون تومان × ۱٫۳ ÷ ۱۰ است؛ یعنی قیمت نمایشی و
+صورتحساب از یک فرمول می‌آیند. `topup_enabled:false` طبیعی است چون در prod هنوز
+`APP_PAYMENT_GATEWAY=noop` است (منتظر `APP_ZARINPAL_MERCHANT_ID`).
 
 ## شارژ کیف پول با زرین‌پال + حسابداری ادمین ✔
 
