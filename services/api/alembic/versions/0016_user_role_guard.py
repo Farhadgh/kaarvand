@@ -65,10 +65,12 @@ def upgrade() -> None:
     op.execute("ALTER TABLE users ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE users FORCE ROW LEVEL SECURITY")
 
-    op.create_check_constraint("ck_users_role", "users", "role IN ('admin', 'user')")
+    # The naming convention (``ck_<table>_<name>``) turns this into
+    # ``ck_users_role``, the same name the model produces.
+    op.create_check_constraint("role", "users", "role IN ('admin', 'user')")
 
 
 def downgrade() -> None:
     # The role rewrite is deliberately not undone: ``owner`` no longer exists in
     # the application, and reverting it would lock every admin out again.
-    op.drop_constraint("ck_users_role", "users", type_="check")
+    op.drop_constraint("role", "users", type_="check")

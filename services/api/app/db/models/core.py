@@ -58,8 +58,9 @@ class User(UUIDPrimaryKey, TimestampMixin, Base):
     __table_args__ = (
         # Two roles only (``admin`` staff / ``user`` customer). Enforced in the
         # database as well, so a legacy ``owner`` cannot sneak back in through a
-        # migration or a manual SQL statement (see migration 0016).
-        CheckConstraint("role IN ('admin', 'user')", name="ck_users_role"),
+        # migration or a manual SQL statement (see migration 0016). The naming
+        # convention renders this as ``ck_users_role`` (``ck_<table>_<name>``).
+        CheckConstraint("role IN ('admin', 'user')", name="role"),
         Index(
             "uq_users_org_email",
             "org_id",
