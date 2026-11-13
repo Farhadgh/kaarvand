@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.billing.cost import price_model_usage
 from app.billing.fx import current_fx_rate
 from app.core.config import Settings, get_settings
-from app.core.deps import get_current_user, get_db, require_roles
+from app.core.deps import get_db, require_admin
 from app.core.errors import AppError, NotFoundError
 from app.db.models import Model, PriceHistory, Provider, User
 from app.providers.gateway import stream_model
@@ -28,7 +28,7 @@ from app.schemas.providers import (
 )
 
 router = APIRouter(tags=["models"])
-admin_only = require_roles("owner", "admin")
+admin_only = require_admin
 
 Capability = Literal["tools", "vision", "audio", "reasoning", "stream"]
 
@@ -76,7 +76,7 @@ async def list_models(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(admin_only),
 ) -> list[ModelOut]:
     stmt = (
         select(Model)
@@ -116,7 +116,7 @@ async def list_models(
 async def read_model(
     model_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(admin_only),
 ) -> ModelOut:
     return model_out(await get_model(db, user, model_id))
 
@@ -240,7 +240,7 @@ async def price_history(
     model_id: uuid.UUID,
     limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(admin_only),
 ) -> list[PriceHistoryOut]:
     model = await get_model(db, user, model_id)
     rows = (

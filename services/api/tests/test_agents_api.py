@@ -173,9 +173,9 @@ async def test_agent_tools_rejects_unknown_tool(client: Any, auth_headers: dict[
     assert response.json()["error"]["code"] == "tool.not_found"
 
 
-async def test_viewer_cannot_create_agent(client: Any, viewer_headers: dict[str, str]) -> None:
+async def test_customer_can_create_agent(client: Any, viewer_headers: dict[str, str]) -> None:
+    """Customers build their own agents; only platform data stays admin-only."""
     response = await client.post(
-        "/v1/agents", json={"name": "ایجنت غیرمجاز"}, headers=viewer_headers
+        "/v1/agents", json={"name": "ایجنت من"}, headers=viewer_headers
     )
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "auth.insufficient_role"
+    assert response.status_code == 201, response.text

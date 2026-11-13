@@ -8,6 +8,8 @@ from __future__ import annotations
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from app.billing.pricing import effective_markup_percent
+
 USD_QUANT = Decimal("0.00000001")
 IRR_QUANT = Decimal("1")
 
@@ -80,7 +82,7 @@ def price_audio_usage(
     )
     return cost, to_irr(
         cost,
-        markup_percent=getattr(model, "markup_percent", 0),
+        markup_percent=effective_markup_percent(model),
         fx_rate=fx_rate,
     )
 
@@ -101,6 +103,6 @@ def price_model_usage(
     )
     return cost, to_irr(
         cost,
-        markup_percent=getattr(model, "markup_percent", 0),
+        markup_percent=effective_markup_percent(model),
         fx_rate=fx_rate,
     )

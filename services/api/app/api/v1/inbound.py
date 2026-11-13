@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.service import get_agent
 from app.core.config import get_settings
-from app.core.deps import get_current_user, get_db, require_roles
+from app.core.deps import get_current_user, get_db, require_member
 from app.core.errors import AppError, NotFoundError
 from app.core.logging import get_logger
 from app.db.models import InboundChannel, InboundEvent, Tool, User
@@ -53,7 +53,7 @@ from app.schemas.inbound import (
 from app.tools.secrets import decrypt_tool_secret
 
 router = APIRouter(tags=["inbound"])
-admin = require_roles("owner", "admin")
+member = require_member
 log = get_logger("openbot.inbound")
 
 # keep a hard reference so the GC cannot cancel an in-flight run
@@ -283,7 +283,7 @@ async def create_channel(
     payload: InboundChannelCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(admin),
+    user: User = Depends(member),
 ) -> InboundChannelOut:
     if not payload.verify_secret:
         raise AppError(
@@ -327,7 +327,7 @@ async def update_channel(
     payload: InboundChannelUpdate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(admin),
+    user: User = Depends(member),
 ) -> InboundChannelOut:
     channel = await _get_channel(db, user, channel_id)
     data = payload.model_dump(exclude_unset=True)
@@ -357,7 +357,7 @@ async def update_channel(
 async def delete_channel(
     channel_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(admin),
+    user: User = Depends(member),
 ) -> Response:
     channel = await _get_channel(db, user, channel_id)
     await db.delete(channel)
@@ -369,7 +369,7 @@ async def test_channel(
     channel_id: uuid.UUID,
     payload: InboundTestIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(admin),
+    user: User = Depends(member),
 ) -> InboundTestOut:
     """Inject a synthetic message and run it end to end (no phone needed).
 
@@ -409,7 +409,7 @@ async def register_webhook(
     channel_id: uuid.UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(admin),
+    user: User = Depends(member),
 ) -> WebhookRegisterOut:
     """Call Telegram ``setWebhook`` for this channel using the tool's bot token.
 

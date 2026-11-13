@@ -11,6 +11,7 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.billing.wallet import get_or_create_wallet
 from app.core.security import hash_password
 from app.db.models import Agent, Organization, User
 from app.db.session import session_scope
@@ -60,12 +61,14 @@ async def _admin(db: Any, org: Organization) -> User:
         email=ADMIN_EMAIL,
         full_name=ADMIN_NAME,
         password_hash=hash_password(ADMIN_PASSWORD),
-        role="owner",
+        role="admin",
         locale="fa",
         digits_pref="fa",
+        is_phone_verified=False,
     )
     db.add(user)
     await db.flush()
+    await get_or_create_wallet(db, org_id=org.id, user_id=user.id)
     return user
 
 

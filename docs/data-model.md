@@ -1,6 +1,6 @@
 # مدل داده
 
-۴۲ جدول در ۱۳ مایگریشن (`0000` تا `0012`). ستون‌های مشترک همه‌ی جدول‌های دامنه:
+۴۳ جدول در ۱۵ مایگریشن (`0000` تا `0014`). ستون‌های مشترک همه‌ی جدول‌های دامنه:
 `id UUID` (پیش‌فرض `uuid4`)، `created_at`, `updated_at` (به‌جز جدول‌های append-only).
 
 ## ۱) هسته و چند-مستأجری
@@ -8,14 +8,16 @@
 | جدول | ستون‌های کلیدی | نکته |
 |---|---|---|
 | `organizations` | name, slug, timezone, calendar, currency, digits, tax_rate, monthly_budget_irr, settings | پیش‌فرض فارسی: `Asia/Tehran` + `jalali` + `IRR` + ارقام فارسی |
-| `users` | org_id, email, phone, full_name, password_hash (Argon2), role, locale, digits_pref | یکتا: (org_id, email) |
+| `users` | org_id, email?, phone?, full_name, password_hash?, is_phone_verified, role, locale, digits_pref | دو نقش: `admin` (کارمند پلتفرم) و `user` (مشتری). مشتری فقط `phone` دارد؛ یکتایی با ایندکس جزئی روی `(org_id, phone)` و `(org_id, email)` |
 | `memberships` | org_id, user_id, role | برای کاربر چندسازمانی |
 | `api_keys` | org_id, prefix, hash, scopes | کلید خام هرگز ذخیره نمی‌شود |
 | `sessions` | user_id, refresh_hash, expires_at, revoked_at | چرخش refresh در هر استفاده |
 | `user_mfa` | secret_enc, is_enabled | TOTP (پیاده‌سازی نهایی: roadmap) |
-| `login_attempts` | email, ip, success | audit ورود ناموفق |
+| `otp_codes` | phone, code_hash (HMAC), purpose, attempts, expires_at, consumed_at, ip | بیرون از RLS؛ فقط هش کد ذخیره می‌شود |
+| `login_attempts` | email?, phone?, ip, success | audit ورود ناموفق (رمزی و OTP) |
 | `app_settings` | key, value(JSONB) | تنظیمات سراسری: `fx`, `product` |
 | `translations` | locale, key, value | متن قابل ویرایش توسط ادمین |
+
 
 ## ۲) پروایدر، مدل، قیمت
 
@@ -76,11 +78,29 @@
 `knowledge_bases` → `documents` → `chunks(embedding vector(1536))` — افزونه‌ی `vector`
 در مایگریشن `0000` نصب می‌شود؛ API و بازیابی در roadmap.
 
-## ۸) صورتحساب (غیرفعال در فاز اول)
+## ۸) کیف پول و پرداخت (تومانی، به‌ازای هر کاربر)
 
-`plans` (پلن `free` seed شده)، `wallets` (با `is_enabled=false`)، `wallet_transactions`،
-`feature_flags`. جداول `invoices`/`payments`/`licenses` **عمداً ساخته نشده‌اند**؛
-پورت `PaymentGateway` جای آن‌ها را باز نگه داشته است.
+`plans` (پلن `free` seed شده)، `wallets` (یکتا روی `user_id`، موجودی به ریال، `is_enabled`)،
+`wallet_transactions` (append-only: `amount_irr`، `kind`، `ref`)، `feature_flags`،
+`payments` (شارژ کیف پول از درگاه).
+
+موجودی همیشه از روی تراکنش‌ها قابل بازسازی است.
+
+| ستون `payments` | نکته |
+|---|---|
+| `org_id` / `user_id` / `wallet_id` | مالک پرداخت؛ RLS مثل بقیهٔ جداول مشتری |
+| `gateway` | `zarinpal` (فعلاً تنها درگاه واقعی) |
+| `authority` | شناسهٔ زرین‌پال؛ یکتا با `gateway` — با همین مقدار callback را پیدا می‌کنیم |
+| `reference` | `ref_id` زرین‌پال؛ شمارهٔ پیگیری که به مشتری نشان داده می‌شود |
+| `amount_irr` | مبلغ به ریال؛ ورودی API تومان است و در سرویس تبدیل می‌شود |
+| `status` | `pending` → `paid` \| `canceled` \| `failed` |
+| `meta` | `callback_url`, `redirect_url`, `callback_status`, پاسخ خام `verify` |
+| `paid_at` | لحظهٔ تسویه؛ مبنای گزارش «امروز» |
+
+**چرا ردیف قبل از رفتن مشتری به درگاه ساخته می‌شود؟** اگر callback گم شود، پرداخت در
+`pending` می‌ماند و ادمین می‌تواند با `authority` آن را با زرین‌پال تطبیق دهد؛ هیچ پولی
+بی‌ردپا وارد کیف پول نمی‌شود. شارژ فقط یک‌بار انجام می‌شود: callback ردیف را
+`SELECT … FOR UPDATE` می‌کند و اگر `paid` بود برمی‌گردد.
 
 ## ۹) امنیت سطح ردیف (RLS)
 
@@ -91,6 +111,8 @@ agents, api_keys, audit_logs, conversations, devices, knowledge_bases, mcp_serve
 memberships, prompts, providers, runs, sessions, tool_invocations, tools,
 usage_ledger, users, wallets
 ```
+
+جدول `otp_codes` عمداً بیرون از RLS است: پیش از ورود، هنوز مستأجری وجود ندارد.
 
 گزاره:
 

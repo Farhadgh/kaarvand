@@ -20,7 +20,7 @@ export function AgentSettingsForm({
   me: User;
 }) {
   const router = useRouter();
-  const canEdit = me.role === "owner" || me.role === "admin";
+  const canEdit = me.role === "admin";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);

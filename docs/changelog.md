@@ -2,6 +2,89 @@
 
 هر قدم با «شاهد» ثبت شده است؛ یعنی چیزی که واقعاً اجرا شده، نه ادعا.
 
+## کاتالوگ مشتری: مدل با قیمت تومانی، بدون افشای پروایدر ✔
+
+**مسئله:** `GET /v1/models` برای هر کاربر واردشده باز بود و شناسه/نام پروایدر، `base_url`،
+قیمت دلاری و `markup` را برمی‌گرداند؛ یعنی مشتری می‌توانست هزینهٔ تمام‌شدهٔ ما را ببیند.
+ضمناً حاشیهٔ سود ۳۰٪ در تنظیمات وجود داشت ولی هیچ‌جا اعمال نمی‌شد.
+
+**نتیجه:** مشتری فقط `/v1/catalog/models` را می‌بیند: نام فارسی، قابلیت‌ها و قیمت
+**تومان برای هر ۱ میلیون توکن**. `/v1/models` کاملاً ادمین شد و حاشیهٔ سود پیش‌فرض
+۳۰٪ حالا هم در صورتحساب و هم در قیمت نمایشی اعمال می‌شود.
+
+| فایل | تغییر |
+|---|---|
+| `billing/pricing.py` (جدید) | `effective_markup_percent` (markup مدل، وگرنه ۳۰٪ پیش‌فرض)، `toman_for` و `retail_prices` — یک منبع واحد برای قیمت فروش |
+| `billing/cost.py` · `runtime/engine.py` · `audio/service.py` | صورتحساب از همان `effective_markup_percent` استفاده می‌کند (قیمت نمایشی = قیمت کسرشده) |
+| `api/v1/catalog.py` (جدید) | `GET /v1/catalog/models` و `/v1/catalog/models/{id}`؛ فیلتر capability/modality/family/q؛ فقط مدل و پروایدر فعال |
+| `schemas/catalog.py` (جدید) | پاسخ بدون `provider_id`، `base_url`، قیمت دلاری، `price_source`، `markup_percent` |
+| `api/v1/models.py` | `GET /models`، `GET /models/{id}` و `GET /models/{id}/prices` به `require_admin` تغییر کرد (رفع افشا) |
+| `schemas/runs.py` · `api/v1/runs.py` | `cost_usd` (هزینهٔ دلاری ما) برای مشتری `null` می‌شود؛ ادمین همان عدد را می‌بیند |
+| `apps/client/src/pages/Models.tsx` (جدید) | کاتالوگ: جست‌وجو، فیلتر قابلیت، کارت مدل با قیمت تومانی و نشان «فارسی» |
+| `apps/client/src/{App.tsx,lib/api.ts,lib/money.ts}` | مسیر `/models`، تایپ `CatalogModel`، `api.catalog`، `formatTomanValue` |
+| `tests/test_catalog.py` (جدید) | ۸ تست: افشانشدن پروایدر/دلار، ریاضی تومان، اولویت markup، پنهان‌بودن مدل/پروایدر غیرفعال، فیلترها، ۴۰۱/۴۰۳ |
+
+**شاهد:** `pytest tests/test_catalog.py` سبز · `ruff check app tests` پاک ·
+`npm run build` در `apps/client` سبز.
+
+## شارژ کیف پول با زرین‌پال + حسابداری ادمین ✔
+
+**مسئله:** فاز ۱ کیف پول داشت ولی هیچ راهی برای پر کردنش نبود؛ `PaymentGateway` فقط یک
+پورت با `noop` بود. مشتری نمی‌توانست پول بریزد و ادمین هیچ گزارشی از درآمد نداشت.
+
+**نتیجه:** مشتری مبلغ را به تومان انتخاب می‌کند، به درگاه زرین‌پال می‌رود، برمی‌گردد و کیف پولش
+(در صورت تأیید) یک‌بار شارژ می‌شود. ادمین در پنل «پرداخت‌ها» درآمد تسویه‌شده، پرداخت‌های
+در انتظار و ناموفق را می‌بیند.
+
+| فایل | تغییر |
+|---|---|
+| `alembic/versions/0015_payments.py` (جدید) | جدول `payments` (authority یکتا با gateway، مبلغ ریالی، status، reference، `meta`، `paid_at`) + RLS |
+| `db/models/billing.py` | مدل `Payment` (سند وضعیت‌ها و قاعدهٔ «یک‌بار شارژ») |
+| `billing/zarinpal.py` (جدید) | آداپتور REST v4: `request.json` → `StartPay/{authority}` → `verify.json`؛ کد `100`/`101` = پرداخت‌شده، `sandbox` با یک فلگ |
+| `billing/registry.py` | `GATEWAYS = {noop, zarinpal}` و پاس‌دادن `Settings` به آداپتور |
+| `billing/topup.py` (جدید) | `start_topup` (حداقل مبلغ، ساخت ردیف pending، دریافت `redirect_url`) و `apply_callback` (قفل ردیف، تأیید، شارژ یک‌بار، `return_url`) |
+| `api/v1/wallet.py` | `POST /v1/wallet/topup` · `GET /v1/wallet/payments` · `GET /v1/wallet/topup/callback` (عمومی، ۳۰۳ به deep link)؛ `GET /v1/wallet` حالا `min_topup_*` و `topup_enabled` هم می‌دهد |
+| `api/v1/payments.py` (جدید) | `GET /v1/payments` (فیلتر status/user_id + نام و موبایل) · `GET /v1/payments/summary` (درآمد، امروز، در انتظار، ناموفق) — فقط ادمین |
+| `core/config.py` · `.env.example` | `APP_ZARINPAL_*`، `APP_PAYMENT_CALLBACK_URL`، `APP_PAYMENT_RETURN_URL`، `APP_PAYMENT_TIMEOUT_SECONDS` |
+| `apps/client/src/pages/Wallet.tsx` (جدید) | انتخاب مبلغ (۵۰/۱۰۰/۲۰۰/۵۰۰ هزار تومان یا دستی)، دکمهٔ پرداخت، پیام بازگشت، فهرست پرداخت‌ها |
+| `apps/client/src/lib/desktop.ts` (جدید) | پل Electron: `openExternal`، `onDeepLink`، `parseDeepLink` (در مرورگر به رفتار وب برمی‌گردد) |
+| `apps/client/src/App.tsx` | مسیر `/wallet` واقعی شد + `DeepLinkBridge` برای `kaarvand://wallet?status=…` |
+| `apps/web/app/(panel)/payments/page.tsx` (جدید) | صفحهٔ حسابداری: چهار کارت آماری، فیلتر وضعیت، بازهٔ ۷/۳۰/۹۰ روز، جدول پرداخت‌ها |
+| `apps/web/lib/{types,copy}.ts` · `components/{shell,ui}.tsx` | تایپ `Payment`/`PaymentSummary`، برچسب‌های `paid`/`canceled`، آیتم منو، رنگ Badge |
+| `tests/test_topup.py` (جدید) | ۱۳ تست: شارژ یک‌باره، تکرار callback، لغو، تأیید ناموفق، حداقل مبلغ، جداسازی کاربران، دسترسی ادمین، پارس آداپتور زرین‌پال (بدون شبکه) |
+
+**شاهد:** `pytest tests/test_topup.py` → **۱۳ passed** · `ruff check app tests` → پاک ·
+`npm run build` در `apps/client` و `next build` در `apps/web` سبز.
+
+## ورود با موبایل (OTP) + کیف پول هر کاربر + نقش‌های تازه ✔
+
+**مسئله:** ورود مشتری با ایمیل/رمز برای محصولی که مخاطبش کاربر عادی ایرانی است مناسب نبود، و
+کیف پول به کل سازمان تعلق داشت نه به شخص. نقش‌ها هم پنج‌تا بودند (`owner/admin/operator/editor/viewer`)
+که با مدل «ادمین پلتفرم در برابر مشتری» نمی‌خواند.
+
+**نتیجه:** مشتری فقط شماره موبایل وارد می‌کند، کد پیامکی می‌گیرد و وارد می‌شود؛ در همان لحظه
+حساب و کیف پول تومانی‌اش ساخته می‌شود. ادمین پلتفرم همان ورود ایمیل/رمز قبلی را دارد.
+
+| فایل | تغییر |
+|---|---|
+| `alembic/versions/0014_otp_and_user_wallets.py` (جدید) | `users.email`/`password_hash` nullable + `is_phone_verified` + ایندکس یکتای جزئی روی موبایل؛ `wallets.user_id` جای `uq_wallets_org_id`؛ جدول `otp_codes`؛ `login_attempts.phone`؛ تبدیل نقش‌ها (`owner→admin`، بقیه→`user`) |
+| `db/models/core.py` · `billing.py` · `auth.py` | مدل‌های به‌روز + `OtpCode` + `User.has_password`/`is_admin` |
+| `auth/otp.py` (جدید) | تولید کد، هش HMAC-SHA256، انقضای ۱۲۰ ثانیه، سقف ۵ تلاش، کول‌داون ۶۰ ثانیه، سهمیهٔ روزانه موبایل/آی‌پی؛ شمارندهٔ تلاش در تراکنش جدا commit می‌شود |
+| `auth/accounts.py` (جدید) | `resolve_org`، `find_or_create_by_phone` (ساخت کیف پول در اولین ورود) |
+| `auth/sessions.py` (جدید) | `issue_tokens`، `record_login_attempt`، `digest` — مشترک بین ورود رمزی و OTP |
+| `notifications/sms.py` (جدید) | فراز اس‌ام‌اس: حالت «الگو» و «متن ساده»؛ بدون کلید/غیرفعال → فقط لاگ (قابل تست) |
+| `api/v1/otp.py` (جدید) | `POST /v1/auth/otp/request` · `POST /v1/auth/otp/verify` (پاسخ: جفت توکن + `is_new_user`) |
+| `api/v1/wallet.py` (جدید) | `GET /v1/wallet` (ریال + تومان + نرخ دلار + درصد سود) · `GET /v1/wallet/transactions` |
+| `billing/wallet.py` (جدید) | `get_or_create_wallet`، `credit`/`debit` با ثبت `wallet_transactions`، خطای `wallet.insufficient_balance` |
+| `core/deps.py` | `require_admin` / `require_member` / `owns_or_admin` — فقط دو نقش |
+| `api/v1/*` | درها باز شد برای مشتری (ایجنت، ابزار، اپ، کانال، اجرا) و بسته شد برای داده‌های پلتفرم (پروایدرها، `provider-adapters`، مدل‌ها، تنظیمات، کاربران) |
+| `apps/web` | `Role = "admin" \| "user"`، برچسب‌های نقش، منوی پنل، فرم ساخت کاربر |
+| `apps/client` (جدید) | اپ React+Vite با ورود OTP، کیف پول، پوستهٔ Electron و Capacitor |
+| `.github/workflows/android.yml` · `desktop.yml` (جدید) | ساخت APK و نصب‌کنندهٔ ویندوز روی رانرهای گیت‌هاب (بدون نصب ابزار روی سیستم توسعه) |
+
+**شاهد:** `pytest` → **۲۷۲ تست سبز** (۲۷ تست در `test_otp.py`/`test_users_api.py`/`test_auth.py`)،
+`ruff` پاک، `alembic upgrade head` روی دیتابیس محلی (`revision: 0014`)، و `tsc --noEmit` پنل وب بدون خطا.
+
 ## مدل‌های صوتی: خطای شفاف، voice واقعی، پشتیبانی pcm و برچسب «فارسی» ✔
 
 **مسئله:** در `/audio` برای بعضی مدل‌ها فقط «خطای نامشخص رخ داد.» دیده می‌شد. ریشه سه‌لایه بود:

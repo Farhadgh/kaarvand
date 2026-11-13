@@ -47,7 +47,7 @@ export default async function ModelsPage() {
         providerNames={providerNames}
         presets={presets}
         providers={providers}
-        canEdit={me.role === "owner" || me.role === "admin"}
+        canEdit={me.role === "admin" || me.role === "user"}
       />
     </div>
   );

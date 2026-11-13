@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.service import effective_prompt, get_agent, validate_model
 from app.agents.workflow import validate_graph
 from app.core.config import Settings, get_settings
-from app.core.deps import get_current_user, get_db, require_roles
+from app.core.deps import get_current_user, get_db, require_member
 from app.core.errors import AppError, NotFoundError
 from app.db.models import Agent, AgentTask, AgentTool, AgentWorkflow, Model, Tool, User
 from app.prompts.service import resolve_prompt
@@ -34,8 +34,8 @@ from app.schemas.prompts import PromptPreviewOut
 from app.schemas.runs import RunResultOut
 
 router = APIRouter(prefix="/agents", tags=["agents"])
-editor = require_roles("owner", "admin")
-runner = require_roles("owner", "admin", "operator")
+editor = require_member
+runner = require_member
 
 
 def task_out(task: AgentTask) -> AgentTaskOut:

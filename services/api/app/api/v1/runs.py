@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.service import get_agent, get_org
 from app.core.config import Settings, get_settings
-from app.core.deps import get_current_user, get_db, require_roles
+from app.core.deps import ADMIN_ROLE, get_current_user, get_db, require_member
 from app.core.errors import AppError, NotFoundError
 from app.db.models import Run, ToolInvocation, User
 from app.db.session import session_scope, set_tenant
@@ -32,7 +32,7 @@ from app.schemas.runs import (
 )
 
 router = APIRouter(tags=["runs"])
-operator = require_roles("owner", "admin", "operator")
+operator = require_member
 
 
 async def _get_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> Run:
@@ -42,6 +42,14 @@ async def _get_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> Run:
     if run is None:
         raise NotFoundError(code="run.not_found")
     return run
+
+
+def run_out(run: Run, user: User) -> RunOut:
+    """Customers see the Toman price they paid, never the platform's USD cost."""
+    out = RunOut.model_validate(run)
+    if user.role != ADMIN_ROLE:
+        out.cost_usd = None
+    return out
 
 
 async def _collect(engine: RunEngine) -> tuple[list[dict[str, Any]], str]:
@@ -98,6 +106,7 @@ async def _run_to_completion(
     conversation_id: uuid.UUID | None = None,
     approved: bool = False,
     max_tokens: int | None = None,
+    hide_usd: bool = False,
 ) -> RunResultOut:
     async with session_scope(org_id=org_id) as engine_db:
         run = await engine_db.get(Run, run_id)
@@ -115,7 +124,10 @@ async def _run_to_completion(
         )
         events, text = await _collect(engine)
         fresh = (await engine_db.execute(select(Run).where(Run.id == run_id))).scalar_one()
-        return RunResultOut(run=RunOut.model_validate(fresh), text=text, events=events)
+        result = RunOut.model_validate(fresh)
+        if hide_usd:
+            result.cost_usd = None
+        return RunResultOut(run=result, text=text, events=events)
 
 
 @router.post("/agents/{agent_id}/runs")
@@ -168,6 +180,7 @@ async def start_run(
         input_text=payload.input,
         conversation_id=payload.conversation_id,
         max_tokens=payload.max_tokens,
+        hide_usd=user.role != ADMIN_ROLE,
     )
 
 
@@ -215,6 +228,7 @@ async def approve_run(
         settings=settings,
         input_text=input_text,
         approved=True,
+        hide_usd=user.role != ADMIN_ROLE,
     )
 
 
@@ -235,7 +249,7 @@ async def list_runs(
     rows = (
         await db.execute(stmt.order_by(Run.created_at.desc()).limit(limit).offset(offset))
     ).scalars().all()
-    return [RunOut.model_validate(row) for row in rows]
+    return [run_out(row, user) for row in rows]
 
 
 @router.get("/runs/{run_id}", response_model=RunOut)
@@ -244,7 +258,7 @@ async def read_run(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> RunOut:
-    return RunOut.model_validate(await _get_run(db, user, run_id))
+    return run_out(await _get_run(db, user, run_id), user)
 
 
 @router.post("/runs/{run_id}/cancel", response_model=RunOut)
@@ -255,10 +269,10 @@ async def cancel_run(
 ) -> RunOut:
     run = await _get_run(db, user, run_id)
     if run.status in {"completed", "failed", "cancelled"}:
-        return RunOut.model_validate(run)
+        return run_out(run, user)
     run.status = "cancelled"
     await db.flush()
-    return RunOut.model_validate(run)
+    return run_out(run, user)
 
 
 @router.get("/runs/{run_id}/invocations", response_model=list[ToolInvocationOut])

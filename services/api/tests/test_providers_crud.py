@@ -101,7 +101,7 @@ async def test_viewer_cannot_create_provider(client: Any, admin_tokens: dict[str
                 email=email,
                 full_name="کاربر بیننده",
                 password_hash=hash_password(password),
-                role="viewer",
+                role="user",
             )
         )
 

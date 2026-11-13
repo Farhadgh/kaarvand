@@ -132,9 +132,9 @@ async def test_duplicate_slug_is_conflict(client: Any, auth_headers: dict[str, s
     assert second.json()["error"]["code"] == "tool.duplicate_slug"
 
 
-async def test_viewer_cannot_create_tool(client: Any, viewer_headers: dict[str, str]) -> None:
+async def test_customer_can_create_tool(client: Any, viewer_headers: dict[str, str]) -> None:
     response = await client.post("/v1/tools", json=_payload(), headers=viewer_headers)
-    assert response.status_code == 403
+    assert response.status_code == 201, response.text
 
 
 @respx.mock

@@ -26,6 +26,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from app.agents.service import effective_prompt
 from app.billing.cost import price_model_usage
 from app.billing.fx import current_fx_rate
+from app.billing.pricing import effective_markup_percent
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.db.models import (
@@ -503,7 +504,7 @@ class RunEngine:
                 tokens_in=tokens_in,
                 tokens_out=tokens_out,
                 cost_usd=cost_usd,
-                markup_percent=Decimal(str(model.markup_percent or 0)),
+                markup_percent=effective_markup_percent(model, self.settings),
                 fx_rate=Decimal(str(self.fx_rate)),
                 cost_irr=cost_irr,
                 billable=not self.settings.free_mode,

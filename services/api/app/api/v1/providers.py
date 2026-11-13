@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user, get_db, require_roles
+from app.core.deps import get_db, require_admin
 from app.core.errors import AppError, NotFoundError
 from app.db.models import Provider, ProviderAdapter, User
 from app.providers.credentials import encrypt_api_key, masked_api_key, scrub
@@ -27,7 +27,7 @@ from app.schemas.providers import (
 )
 
 router = APIRouter(tags=["providers"])
-admin_only = require_roles("owner", "admin")
+admin_only = require_admin
 
 
 def slugify(value: str) -> str:
@@ -74,7 +74,7 @@ async def get_provider(db: AsyncSession, user: User, provider_id: uuid.UUID) -> 
 @router.get("/provider-adapters", response_model=list[ProviderAdapterOut])
 async def list_adapters(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(admin_only),
 ) -> list[ProviderAdapterOut]:
     rows = (
         (
@@ -93,7 +93,7 @@ async def list_adapters(
 @router.get("/providers", response_model=list[ProviderOut])
 async def list_providers(
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(admin_only),
 ) -> list[ProviderOut]:
     rows = (
         (
@@ -149,7 +149,7 @@ async def create_provider(
 async def read_provider(
     provider_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(admin_only),
 ) -> ProviderOut:
     return to_out(await get_provider(db, user, provider_id))
 

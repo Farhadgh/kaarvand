@@ -191,14 +191,14 @@ async def test_agent_budget_blocks_the_run(
     assert body["run"]["error_code"] == "budget.agent_exceeded"
 
 
-async def test_viewer_cannot_start_run(client: Any, viewer_headers: dict[str, str]) -> None:
+async def test_unknown_agent_is_not_found(client: Any, viewer_headers: dict[str, str]) -> None:
+    """Any signed in account may run agents, but only agents that exist."""
     response = await client.post(
         "/v1/agents/00000000-0000-0000-0000-000000000000/runs",
         headers=viewer_headers,
         json={"input": "سلام", "stream": False},
     )
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "auth.insufficient_role"
+    assert response.status_code == 404
 
 
 async def test_runs_list(client: Any, auth_headers: dict[str, str]) -> None:

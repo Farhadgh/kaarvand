@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.service import get_agent
 from app.api.v1.tools import validate_tool_payload
 from app.connector.hub import hub
-from app.core.deps import get_current_user, get_db, require_roles
+from app.core.deps import get_current_user, get_db, require_member
 from app.core.errors import AppError, NotFoundError
 from app.db.models import AgentTool, AppCatalog, Device, DeviceTool, Tool, User
 from app.providers.jsonpath import fill
@@ -35,7 +35,7 @@ from app.schemas.apps import (
 from app.tools.secrets import encrypt_tool_secret
 
 router = APIRouter(tags=["apps"])
-editor = require_roles("owner", "admin", "operator")
+editor = require_member
 
 
 def tool_slug_for(app: AppCatalog, agent_id: uuid.UUID) -> str:

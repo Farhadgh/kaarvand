@@ -10,7 +10,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.service import get_agent
-from app.core.deps import get_current_user, get_db, require_roles
+from app.core.deps import get_current_user, get_db, require_member
 from app.core.errors import AppError, ForbiddenError, NotFoundError
 from app.db.models import AgentTool, McpServer, Tool, User
 from app.schemas.tools import (
@@ -35,7 +35,7 @@ from app.tools.secrets import encrypt_tool_secret, masked_secret
 from app.tools.service import execute_tool
 
 router = APIRouter(tags=["tools"])
-editor = require_roles("owner", "admin", "operator")
+editor = require_member
 
 
 def to_out(tool: Tool) -> ToolOut:

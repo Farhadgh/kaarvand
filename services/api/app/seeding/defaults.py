@@ -15,7 +15,6 @@ from app.db.models import (
     Prompt,
     PromptVersion,
     ProviderAdapter,
-    Wallet,
 )
 from app.seeding.catalog import CAPABILITY_RULES, PROVIDER_ADAPTERS
 from app.seeding.prompts_fa import DEFAULT_PROMPTS
@@ -92,7 +91,7 @@ async def seed_prompts(db: Any) -> int:
     return created
 
 
-async def seed_billing(db: Any, org: Organization) -> None:
+async def seed_billing(db: Any, _org: Organization) -> None:
     if (await db.execute(select(Plan).where(Plan.code == "free"))).scalar_one_or_none() is None:
         db.add(
             Plan(
@@ -109,9 +108,7 @@ async def seed_billing(db: Any, org: Organization) -> None:
             )
         )
 
-    wallet = (await db.execute(select(Wallet).where(Wallet.org_id == org.id))).scalar_one_or_none()
-    if wallet is None:
-        db.add(Wallet(org_id=org.id, balance_irr=0, currency="IRR", is_enabled=False))
+    # wallets are per user now; the seed creates one for the admin account
 
     flags = (
         ("billing_enabled", False),

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.service import get_org
 from app.billing.fx import current_fx_rate, set_fx_rate
 from app.core.config import Settings, get_settings
-from app.core.deps import get_current_user, get_db, require_roles
+from app.core.deps import get_current_user, get_db, require_admin
 from app.db.models import User
 from app.schemas.settings import (
     FxIn,
@@ -21,7 +21,7 @@ from app.schemas.settings import (
 )
 
 router = APIRouter(prefix="/settings", tags=["settings"])
-admin_only = require_roles("owner", "admin")
+admin_only = require_admin
 
 
 @router.get("", response_model=SettingsOut)

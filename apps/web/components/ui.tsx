@@ -55,6 +55,7 @@ export function Stat({
 const badgeTones: Record<string, string> = {
   completed: "bg-emerald-50 text-emerald-700",
   ok: "bg-emerald-50 text-emerald-700",
+  paid: "bg-emerald-50 text-emerald-700",
   online: "bg-emerald-50 text-emerald-700",
   published: "bg-emerald-50 text-emerald-700",
   running: "bg-brand-50 text-brand-700",
@@ -67,6 +68,7 @@ const badgeTones: Record<string, string> = {
   failed: "bg-rose-50 text-rose-700",
   error: "bg-rose-50 text-rose-700",
   cancelled: "bg-ink-100 text-ink-600",
+  canceled: "bg-ink-100 text-ink-600",
   high: "bg-rose-50 text-rose-700",
   medium: "bg-amber-50 text-amber-700",
   low: "bg-emerald-50 text-emerald-700",

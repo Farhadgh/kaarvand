@@ -31,7 +31,7 @@ export default async function PromptsPage({
     );
   }
 
-  const canEdit = me.role === "owner" || me.role === "admin" || me.role === "operator";
+  const canEdit = me.role === "admin" || me.role === "user";
   const selectedId = params.id ?? prompts[0].id;
   const selected = prompts.find((item) => item.id === selectedId) ?? prompts[0];
   const versions = await serverFetch<PromptVersion[]>(`/prompts/${selected.id}/versions`).catch(

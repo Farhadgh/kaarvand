@@ -27,7 +27,7 @@ export function AgentAppsCard({
   me: User;
 }) {
   const router = useRouter();
-  const canEdit = me.role === "owner" || me.role === "admin";
+  const canEdit = me.role === "admin";
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 

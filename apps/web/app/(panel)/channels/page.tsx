@@ -13,7 +13,7 @@ export default async function ChannelsPage() {
     serverFetch<User>("/auth/me"),
   ]);
 
-  const canEdit = me.role === "owner" || me.role === "admin";
+  const canEdit = me.role === "admin" || me.role === "user";
   const replyTools = tools
     .filter((tool) => tool.kind === "http" && Boolean(tool.config?.app_slug))
     .map((tool) => ({

@@ -17,7 +17,7 @@ from app.connector.pairing import (
     new_pairing_code,
     pairing_expiry,
 )
-from app.core.deps import get_current_user, get_db, require_roles
+from app.core.deps import get_current_user, get_db, require_member
 from app.core.errors import AppError, NotFoundError
 from app.db.models import Device, User
 from app.db.session import session_scope
@@ -32,7 +32,7 @@ from app.schemas.devices import (
 )
 
 router = APIRouter(tags=["devices"])
-editor = require_roles("owner", "admin")
+editor = require_member
 
 
 async def _get_device(db: AsyncSession, user: User, device_id: uuid.UUID) -> Device:

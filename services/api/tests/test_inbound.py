@@ -251,7 +251,7 @@ async def test_custom_reply_tool_without_app_slug_is_accepted(
     assert channel["reply_mode"] == "auto"
 
 
-async def test_viewer_cannot_create_channel(
+async def test_customer_can_create_channel(
     client: Any, auth_headers: dict[str, str], viewer_headers: dict[str, str]
 ) -> None:
     agent = await make_agent(client, auth_headers)
@@ -259,13 +259,13 @@ async def test_viewer_cannot_create_channel(
         "/v1/channels",
         headers=viewer_headers,
         json={
-            "name_fa": "بیننده",
+            "name_fa": "کانال من",
             "provider": "telegram",
             "agent_id": agent["id"],
             "verify_secret": "x",
         },
     )
-    assert response.status_code == 403
+    assert response.status_code == 201, response.text
 
 
 # -------------------------------------------------------------------- webhooks

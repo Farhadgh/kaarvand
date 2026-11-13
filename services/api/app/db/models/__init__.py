@@ -7,8 +7,8 @@ by name so cross module references are fine.
 from app.db.models.agents import Agent, AgentTask, AgentTool, AgentWorkflow
 from app.db.models.apps import AppCatalog
 from app.db.models.audit import AuditLog
-from app.db.models.auth import AppSetting, LoginAttempt, UserMfa, UserSession
-from app.db.models.billing import FeatureFlag, Plan, Wallet, WalletTransaction
+from app.db.models.auth import AppSetting, LoginAttempt, OtpCode, UserMfa, UserSession
+from app.db.models.billing import FeatureFlag, Payment, Plan, Wallet, WalletTransaction
 from app.db.models.conversations import Conversation, Message
 from app.db.models.core import ApiKey, Membership, Organization, User
 from app.db.models.i18n import Translation
@@ -46,6 +46,8 @@ __all__ = [
     "Message",
     "Model",
     "Organization",
+    "OtpCode",
+    "Payment",
     "Plan",
     "PriceHistory",
     "Prompt",

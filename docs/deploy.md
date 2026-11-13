@@ -46,7 +46,38 @@ APP_MASTER_KEY=***               # base64 از ۳۲ بایت
 APP_FX_USD_IRR=1000000
 APP_CORS_ORIGINS=["https://kaarvand.amigok.cloud"]
 APP_PUBLIC_BASE_URL=https://kaarvand.amigok.cloud
+
+# --- ورود با موبایل و پیامک (از مایگریشن 0014 لازم است) --------------------
+APP_OTP_TTL_SECONDS=120
+APP_OTP_LENGTH=5
+APP_OTP_MAX_ATTEMPTS=5
+APP_OTP_RESEND_COOLDOWN_SECONDS=60
+APP_OTP_DAILY_LIMIT_PER_PHONE=10
+APP_OTP_DAILY_LIMIT_PER_IP=30
+APP_OTP_DEBUG_CODE=false        # در prod باید false بماند
+APP_SMS_ENABLED=true            # تا کلید فراز اس‌ام‌اس نرسیده، false بگذارید
+APP_FARAZSMS_API_KEY=***
+APP_FARAZSMS_SENDER=+98...
+APP_FARAZSMS_OTP_PATTERN=***    # کد الگوی تأییدشده؛ خالی = متن ساده
+
+# --- قیمت‌گذاری تومانی -----------------------------------------------------
+APP_PLATFORM_MARKUP_PERCENT=30
+APP_MIN_TOPUP_IRR=100000
+
+# --- درگاه پرداخت زرین‌پال (شارژ کیف پول) ---------------------------------
+APP_PAYMENT_GATEWAY=zarinpal      # noop = درگاه خاموش (تست/آزمایشی)
+APP_ZARINPAL_MERCHANT_ID=***      # کد ۳۶ کاراکتری پنل زرین‌پال
+APP_ZARINPAL_SANDBOX=false        # true = sandbox.zarinpal.com
+APP_PAYMENT_TIMEOUT_SECONDS=15
+# آدرسی که زرین‌پال مشتری را به آن برمی‌گرداند
+APP_PAYMENT_CALLBACK_URL=https://kaarvand.amigok.cloud/v1/wallet/topup/callback
+# بعد از تأیید، مشتری به این آدرس (deep link اپ) می‌رود
+APP_PAYMENT_RETURN_URL=kaarvand://wallet
 ```
+
+> **مهم:** با `APP_SMS_ENABLED=false` کد ورود فقط در لاگ سرور
+> (`journalctl -u kaarvand-api | grep OTP`) دیده می‌شود؛ برای کاربر واقعی حتماً پیامک را
+> فعال کنید. هر شماره‌ای که با OTP وارد شود، خودش حساب `user` و کیف پول می‌گیرد.
 
 پنل: `/opt/kaarvand/apps/web/.env.production` → `API_BASE_URL=http://127.0.0.1:8100` و
 `COOKIE_SECURE=true`.

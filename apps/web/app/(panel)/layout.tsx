@@ -54,6 +54,26 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     );
   }
 
+  // This panel is the admin console: customers live in the client app (OTP).
+  // A customer account that somehow has a password must not see provider data.
+  if (user.role !== "admin") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-ink-50 px-4">
+        <Card className="w-full max-w-md">
+          <EmptyState
+            title="این پنل مخصوص مدیران است"
+            description="حساب شما یک حساب کاربری (مشتری) است. برای استفاده از کاروند، اپلیکیشن دسکتاپ یا اندروید را باز کنید."
+            action={
+              <a className="btn-primary" href="/api/auth/logout">
+                خروج از حساب
+              </a>
+            }
+          />
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <Shell user={user} meta={meta}>
       {children}

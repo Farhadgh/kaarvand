@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function UsersPage() {
   const me = await serverFetch<User>("/auth/me");
-  const canManage = me.role === "owner" || me.role === "admin";
+  const canManage = me.role === "admin" || me.role === "user";
 
   if (!canManage) {
     return (
@@ -35,7 +35,7 @@ export default async function UsersPage() {
         </p>
       </div>
 
-      <UsersCreateForm canEdit={me.role === "owner" || me.role === "admin"} />
+      <UsersCreateForm canEdit={me.role === "admin" || me.role === "user"} />
 
       <div className="table-wrapper">
         <table className="w-full">

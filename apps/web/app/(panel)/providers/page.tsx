@@ -11,7 +11,7 @@ export default async function ProvidersPage() {
     serverFetch<ProviderAdapter[]>("/provider-adapters"),
     serverFetch<User>("/auth/me"),
   ]);
-  const canEdit = me.role === "owner" || me.role === "admin";
+  const canEdit = me.role === "admin" || me.role === "user";
 
   return (
     <div className="space-y-5">

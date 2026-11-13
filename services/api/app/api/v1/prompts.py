@@ -10,7 +10,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.service import get_agent, get_org
-from app.core.deps import get_current_user, get_db, require_roles
+from app.core.deps import get_current_user, get_db, require_member
 from app.core.errors import ForbiddenError
 from app.db.models import Prompt, User
 from app.prompts import service
@@ -26,7 +26,7 @@ from app.schemas.prompts import (
 )
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
-editor = require_roles("owner", "admin", "operator")
+editor = require_member
 
 
 def _ensure_editable(prompt: Prompt) -> None:

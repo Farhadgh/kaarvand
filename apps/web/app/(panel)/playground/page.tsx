@@ -44,7 +44,7 @@ export default async function PlaygroundPage() {
           name: agent.name,
           model: agent.model_external_id,
         }))}
-        canRun={me.role !== "viewer"}
+        canRun
       />
     </div>
   );

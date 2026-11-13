@@ -22,7 +22,7 @@ export function AgentToolsCard({
   me: User;
 }) {
   const router = useRouter();
-  const canEdit = me.role === "owner" || me.role === "admin";
+  const canEdit = me.role === "admin";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, string>>(() => {

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+release/
+android/
+ios/
+.env
+.env.local
+*.log

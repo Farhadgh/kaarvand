@@ -14,7 +14,7 @@ export default async function AgentsPage() {
     serverFetch<Model[]>("/models?capability=tools&limit=200").catch(() => [] as Model[]),
     serverFetch<User>("/auth/me"),
   ]);
-  const canEdit = me.role === "owner" || me.role === "admin";
+  const canEdit = me.role === "admin" || me.role === "user";
   const modelOptions = models.map((model) => ({
     id: model.id,
     label: model.display_name_fa ?? model.external_id,

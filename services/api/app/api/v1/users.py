@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_db, require_roles
+from app.billing.wallet import get_or_create_wallet
+from app.core.deps import get_db, require_admin
 from app.core.errors import AppError, NotFoundError
 from app.core.security import hash_password
 from app.core.text_fa import normalize_fa
@@ -17,10 +18,8 @@ from app.db.models import User, UserSession
 from app.schemas.users import PasswordResetIn, UserCreate, UserOut, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
-admin_only = require_roles("owner", "admin")
-owner_only = require_roles("owner")
-
-PRIVILEGED = {"owner", "admin"}
+admin_only = require_admin
+owner_only = require_admin
 
 
 async def _get_user(db: AsyncSession, actor: User, user_id: uuid.UUID) -> User:
@@ -32,16 +31,6 @@ async def _get_user(db: AsyncSession, actor: User, user_id: uuid.UUID) -> User:
     if target is None:
         raise NotFoundError(code="user.not_found")
     return target
-
-
-def _guard_role_assignment(actor: User, role: str | None) -> None:
-    """A non-owner can never create or promote a privileged account."""
-    if role in PRIVILEGED and actor.role != "owner":
-        raise AppError(
-            code="user.insufficient_privilege",
-            status_code=403,
-            params={"role": role},
-        )
 
 
 @router.get("", response_model=list[UserOut])
@@ -70,8 +59,6 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(admin_only),
 ) -> UserOut:
-    _guard_role_assignment(actor, payload.role)
-
     exists = (
         await db.execute(
             select(User.id).where(User.org_id == actor.org_id, User.email == payload.email)
@@ -96,6 +83,7 @@ async def create_user(
     )
     db.add(user)
     await db.flush()
+    await get_or_create_wallet(db, org_id=actor.org_id, user_id=user.id)
     return UserOut.model_validate(user)
 
 
@@ -121,11 +109,6 @@ async def update_user(
     if target.id == actor.id and ("role" in data or data.get("is_active") is False):
         raise AppError(code="user.cannot_modify_self", status_code=409)
 
-    if "role" in data:
-        _guard_role_assignment(actor, data["role"])
-        if target.role == "owner" and actor.role != "owner":
-            raise AppError(code="user.insufficient_privilege", status_code=403)
-
     for key, value in data.items():
         setattr(target, key, value)
     await db.flush()
@@ -140,8 +123,6 @@ async def reset_password(
     actor: User = Depends(admin_only),
 ) -> UserOut:
     target = await _get_user(db, actor, user_id)
-    if target.role == "owner" and actor.role != "owner":
-        raise AppError(code="user.insufficient_privilege", status_code=403)
 
     target.password_hash = hash_password(payload.password)
     await db.execute(

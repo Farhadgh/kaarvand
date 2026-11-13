@@ -331,7 +331,7 @@ async def test_clone_makes_global_tool_editable(
     assert patched.json()["approval_policy"] == "deny"
 
 
-async def test_viewer_cannot_install(
+async def test_customer_can_install_app(
     client: Any, auth_headers: dict[str, str], viewer_headers: dict[str, str]
 ) -> None:
     agent_id = await _agent(client, auth_headers)
@@ -340,7 +340,7 @@ async def test_viewer_cannot_install(
         headers=viewer_headers,
         json={"agent_id": agent_id, "secret": "tok", "variables": {"chat_id": "-1"}},
     )
-    assert response.status_code == 403
+    assert response.status_code in (200, 201), response.text
 
 
 def test_tool_slug_is_stable_per_agent() -> None:

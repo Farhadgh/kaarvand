@@ -1,4 +1,8 @@
-"""User management: create, roles, password reset, deactivation."""
+"""User management: create, roles, password reset, deactivation.
+
+Two roles only: ``admin`` (platform staff, can manage accounts) and ``user``
+(customer, OTP account). Platform admins may create other admins.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +15,7 @@ def _payload(**overrides: Any) -> dict[str, Any]:
         "email": f"user-{uuid.uuid4().hex[:6]}@openbot.local",
         "full_name": "کارشناس فروش",
         "password": "strong-pass-123",
-        "role": "operator",
+        "role": "user",
     }
     data.update(overrides)
     return data
@@ -21,9 +25,10 @@ async def test_create_and_list_users(client: Any, auth_headers: dict[str, str]) 
     created = await client.post("/v1/users", json=_payload(), headers=auth_headers)
     assert created.status_code == 201, created.text
     user = created.json()
-    assert user["role"] == "operator"
+    assert user["role"] == "user"
     assert user["is_active"] is True
     assert user["digits_pref"] == "fa"
+    assert user["has_password"] is True
 
     listed = (await client.get("/v1/users", headers=auth_headers)).json()
     assert any(row["id"] == user["id"] for row in listed)
@@ -32,6 +37,25 @@ async def test_create_and_list_users(client: Any, auth_headers: dict[str, str]) 
         await client.get("/v1/users", params={"q": "کارشناس"}, headers=auth_headers)
     ).json()
     assert any(row["id"] == user["id"] for row in found)
+
+
+async def test_new_user_gets_a_wallet(client: Any, auth_headers: dict[str, str]) -> None:
+    payload = _payload()
+    created = await client.post("/v1/users", json=payload, headers=auth_headers)
+    assert created.status_code == 201
+
+    login = await client.post(
+        "/v1/auth/login", json={"email": payload["email"], "password": payload["password"]}
+    )
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    wallet = await client.get("/v1/wallet", headers=headers)
+    assert wallet.status_code == 200, wallet.text
+    body = wallet.json()
+    assert body["balance_irr"] == 0
+    assert body["is_enabled"] is True
+    assert body["markup_percent"] == 30
 
 
 async def test_duplicate_email_is_conflict(client: Any, auth_headers: dict[str, str]) -> None:
@@ -61,8 +85,15 @@ async def test_invalid_payloads_are_rejected(
     )
     assert short_password.status_code == 422
 
+    unknown_role = await client.post(
+        "/v1/users", json=_payload(role="owner"), headers=auth_headers
+    )
+    assert unknown_role.status_code == 422
 
-async def test_admin_cannot_create_admin(client: Any, auth_headers: dict[str, str]) -> None:
+
+async def test_admin_can_create_another_admin(
+    client: Any, auth_headers: dict[str, str]
+) -> None:
     created = await client.post(
         "/v1/users",
         json=_payload(role="admin", email=f"admin-{uuid.uuid4().hex[:6]}@openbot.local"),
@@ -74,13 +105,7 @@ async def test_admin_cannot_create_admin(client: Any, auth_headers: dict[str, st
         json={"email": created.json()["email"], "password": "strong-pass-123"},
     )
     assert login.status_code == 200
-    admin_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
-
-    escalation = await client.post(
-        "/v1/users", json=_payload(role="owner"), headers=admin_headers
-    )
-    assert escalation.status_code == 403
-    assert escalation.json()["error"]["code"] == "user.insufficient_privilege"
+    assert login.json()["user"]["role"] == "admin"
 
 
 async def test_role_update_and_self_protection(
@@ -152,7 +177,7 @@ async def test_deactivate_user_blocks_login(
     assert any(row["id"] == user["id"] for row in listed)
 
 
-async def test_viewer_cannot_manage_users(
+async def test_customer_cannot_manage_users(
     client: Any, viewer_headers: dict[str, str]
 ) -> None:
     listed = await client.get("/v1/users", headers=viewer_headers)

@@ -12,7 +12,7 @@ export default async function DevicesPage() {
     serverFetch<Device[]>("/devices"),
     serverFetch<User>("/auth/me"),
   ]);
-  const canEdit = me.role === "owner" || me.role === "admin";
+  const canEdit = me.role === "admin" || me.role === "user";
 
   const appsByDevice = new Map<string, DeviceApp[]>();
   await Promise.all(

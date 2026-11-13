@@ -18,6 +18,7 @@ import {
   Settings,
   Terminal,
   Users,
+  Wallet,
   Wrench,
   X,
 } from "lucide-react";
@@ -40,6 +41,7 @@ const icons = {
   chart: BarChart3,
   users: Users,
   settings: Settings,
+  wallet: Wallet,
 } as const;
 
 export function Shell({
@@ -61,8 +63,8 @@ export function Shell({
   }
 
   const items = nav.filter((item) => {
-    if (user.role === "viewer") {
-      return !["/users", "/settings"].includes(item.href);
+    if (user.role !== "admin") {
+      return !["/users", "/settings", "/payments"].includes(item.href);
     }
     return true;
   });

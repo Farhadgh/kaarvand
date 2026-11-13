@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audio import service as audio
 from app.audio.languages import LEVEL_LABELS_FA
 from app.core.config import Settings, get_settings
-from app.core.deps import get_current_user, get_db, require_roles
+from app.core.deps import get_current_user, get_db, require_member
 from app.db.models import Model, Provider, User
 from app.schemas.audio import (
     AudioMetaOut,
@@ -30,7 +30,7 @@ from app.schemas.audio import (
 from app.seeding.audio_presets import AUDIO_PRESETS
 
 router = APIRouter(tags=["audio"])
-operator = require_roles("owner", "admin", "operator")
+operator = require_member
 
 FORMATS = ["mp3", "wav", "opus", "aac", "flac", "pcm"]
 

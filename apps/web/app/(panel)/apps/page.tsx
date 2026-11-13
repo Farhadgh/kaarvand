@@ -12,7 +12,7 @@ export default async function AppsPage() {
     serverFetch<User>("/auth/me"),
   ]);
 
-  const canEdit = me.role === "owner" || me.role === "admin" || me.role === "operator";
+  const canEdit = me.role === "admin" || me.role === "user";
 
   return (
     <div className="space-y-5">

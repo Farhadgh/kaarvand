@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.billing.cost import price_audio_usage
 from app.billing.fx import current_fx_rate
+from app.billing.pricing import effective_markup_percent
 from app.core.config import Settings
 from app.core.errors import AppError, NotFoundError
 from app.db.models import Model, Organization, Provider, UsageLedger, User
@@ -170,7 +171,7 @@ async def _record(
             audio_seconds=max(int(audio_seconds), 0),
             audio_chars=max(int(audio_chars), 0),
             cost_usd=cost_usd,
-            markup_percent=model.markup_percent or Decimal("0"),
+            markup_percent=effective_markup_percent(model, settings),
             fx_rate=fx_rate,
             cost_irr=cost_irr,
             billable=billable,

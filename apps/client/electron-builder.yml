@@ -1,0 +1,28 @@
+appId: cloud.amigok.kaarvand
+productName: Kaarvand
+copyright: کاروند
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**
+  - electron/**
+  - package.json
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: Kaarvand-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: کاروند
+  installerLanguages:
+    - fa_IR
+  language: "1065"

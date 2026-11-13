@@ -33,7 +33,8 @@ class RunOut(ORMModel):
     steps_taken: int
     tokens_in: int
     tokens_out: int
-    cost_usd: Decimal
+    #: the platform's own USD cost; hidden (null) for customers
+    cost_usd: Decimal | None = None
     cost_irr: int
     fx_rate: Decimal | None
     error_code: str | None

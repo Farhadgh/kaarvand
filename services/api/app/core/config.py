@@ -52,10 +52,49 @@ class Settings(BaseSettings):
     default_digits: Literal["fa", "en"] = "fa"
     fx_usd_irr: int = 0
 
-    # --- commercial flags (phase 1: free mode, no payment gateway) ----------
+    # --- commercial flags ---------------------------------------------------
     free_mode: bool = True
     billing_enabled: bool = False
     payment_gateway: str = "noop"
+    # every USD price is multiplied by this before it becomes a Toman price
+    platform_markup_percent: int = 30
+    min_topup_irr: int = 100_000  # 10,000 Toman
+
+    # --- payment gateway (Zarinpal, REST v4) --------------------------------
+    zarinpal_merchant_id: str = ""
+    zarinpal_sandbox: bool = False
+    # empty -> https://payment.zarinpal.com (or the sandbox host)
+    zarinpal_base_url: str = ""
+    zarinpal_request_path: str = "/pg/v4/payment/request.json"
+    zarinpal_verify_path: str = "/pg/v4/payment/verify.json"
+    zarinpal_start_pay_path: str = "/pg/StartPay"
+    payment_timeout_seconds: float = 15.0
+    # absolute URL the gateway redirects the browser back to; empty -> derive
+    # from the incoming request (fine locally, set it in production)
+    payment_callback_url: str = ""
+    # where our callback sends the customer afterwards: the desktop/mobile deep
+    # link by default, or a web page (https://kaarvand.../wallet)
+    payment_return_url: str = "kaarvand://wallet"
+
+    # --- phone OTP login ----------------------------------------------------
+    otp_ttl_seconds: int = 120
+    otp_length: int = 5
+    otp_max_attempts: int = 5
+    otp_resend_cooldown_seconds: int = 60
+    otp_daily_limit_per_phone: int = 10
+    otp_daily_limit_per_ip: int = 30
+    # dev convenience: return the generated code in the API response
+    otp_debug_code: bool = False
+
+    # --- SMS (FarazSMS) -----------------------------------------------------
+    sms_enabled: bool = False
+    sms_provider: str = "farazsms"
+    farazsms_base_url: str = "https://api2.farazsms.com/api/igm"
+    farazsms_api_key: str = ""
+    farazsms_sender: str = ""
+    # pattern (الگو) code used for the OTP message; falls back to plain text
+    farazsms_otp_pattern: str = ""
+    sms_timeout_seconds: float = 10.0
 
     # --- scheduler (cron worker, see ``python -m app.workers.scheduler``) --
     scheduler_enabled: bool = False
@@ -78,6 +117,22 @@ class Settings(BaseSettings):
     @property
     def effective_migration_url(self) -> str:
         return self.migration_database_url or self.database_url
+
+    @property
+    def zarinpal_host(self) -> str:
+        if self.zarinpal_base_url:
+            return self.zarinpal_base_url.rstrip("/")
+        return "https://sandbox.zarinpal.com" if self.zarinpal_sandbox else "https://payment.zarinpal.com"
+
+    @property
+    def payment_callback(self) -> str:
+        """Absolute callback URL, or ``""`` when it must come from the request."""
+        if self.payment_callback_url:
+            return self.payment_callback_url
+        if self.public_base_url:
+            base = self.public_base_url.rstrip("/")
+            return f"{base}{self.api_prefix}/wallet/topup/callback"
+        return ""
 
 
 @lru_cache

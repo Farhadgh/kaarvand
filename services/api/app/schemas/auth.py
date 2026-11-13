@@ -26,11 +26,14 @@ class LogoutRequest(BaseModel):
 class UserOut(ORMModel):
     id: uuid.UUID
     org_id: uuid.UUID
-    email: str
+    email: str | None = None
+    phone: str | None = None
     full_name: str
     role: str
     locale: str
     digits_pref: str
+    is_phone_verified: bool = False
+    has_password: bool = False
 
 
 class TokenPair(BaseModel):
@@ -42,3 +45,26 @@ class TokenPair(BaseModel):
 
 class LoginResponse(TokenPair):
     user: UserOut
+
+
+class OtpRequestIn(BaseModel):
+    phone: str = Field(min_length=10, max_length=20)
+
+
+class OtpRequestOut(BaseModel):
+    """Always 200 when a code was created; the SMS may still be delayed."""
+
+    sent: bool = True
+    expires_in: int
+    resend_in: int
+    sms_delivered: bool
+    debug_code: str | None = None
+
+
+class OtpVerifyIn(BaseModel):
+    phone: str = Field(min_length=10, max_length=20)
+    code: str = Field(min_length=4, max_length=8)
+
+
+class OtpLoginResponse(LoginResponse):
+    is_new_user: bool = False

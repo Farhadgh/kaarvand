@@ -56,11 +56,38 @@ class UserMfa(UUIDPrimaryKey, TimestampMixin, Base):
 
 class LoginAttempt(UUIDPrimaryKey, Base):
     __tablename__ = "login_attempts"
-    __table_args__ = (Index("ix_login_attempts_email_time", "email", "created_at"),)
+    __table_args__ = (
+        Index("ix_login_attempts_email_time", "email", "created_at"),
+        Index("ix_login_attempts_phone_time", "phone", "created_at"),
+    )
 
-    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     success: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class OtpCode(UUIDPrimaryKey, Base):
+    """One short lived SMS code.
+
+    Global (not tenant scoped) by design: it is created before the caller has a
+    session, so it cannot carry ``org_id`` for the RLS policy. Only the hash of
+    the code is stored.
+    """
+
+    __tablename__ = "otp_codes"
+    __table_args__ = (Index("ix_otp_codes_phone_time", "phone", "created_at"),)
+
+    phone: Mapped[str] = mapped_column(String(20), nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(20), default="login", nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -13,7 +13,7 @@ async def test_read_settings(client: Any, auth_headers: dict[str, str]) -> None:
     assert body["org"]["timezone"] == "Asia/Tehran"
     assert body["org"]["calendar"] == "jalali"
     assert body["org"]["digits"] == "fa"
-    assert body["me"]["role"] == "owner"
+    assert body["me"]["role"] == "admin"
     assert body["fx"]["usd_irr"] == 1000000
     assert body["free_mode"] is True
     assert body["billing_enabled"] is False

@@ -14,15 +14,14 @@ export const nav = [
   { href: "/devices", label: "دستگاه‌ها", icon: "monitor" },
   { href: "/runs", label: "اجراها", icon: "activity" },
   { href: "/usage", label: "مصرف و هزینه", icon: "chart" },
+  { href: "/payments", label: "پرداخت‌ها", icon: "wallet" },
   { href: "/users", label: "کاربران", icon: "users" },
   { href: "/settings", label: "تنظیمات", icon: "settings" },
 ] as const;
 
 export const roles: Record<string, string> = {
-  owner: "مالک",
   admin: "مدیر",
-  operator: "کارشناس",
-  viewer: "ناظر",
+  user: "کاربر",
 };
 
 export const statusLabels: Record<string, string> = {
@@ -32,6 +31,8 @@ export const statusLabels: Record<string, string> = {
   completed: "تکمیل‌شده",
   failed: "ناموفق",
   cancelled: "لغو‌شده",
+  canceled: "لغو‌شده",
+  paid: "پرداخت‌شده",
   online: "آنلاین",
   offline: "آفلاین",
   paired: "جفت‌شده",

@@ -35,29 +35,79 @@ GET /v1/meta
 
 ## ۲) احراز هویت
 
+دو مسیر ورود وجود دارد: **موبایل + OTP** برای مشتری، **ایمیل + رمز** برای ادمین پلتفرم.
+هر دو یک جفت توکن یکسان برمی‌گردانند.
+
 | متد | مسیر | بدنه/خروجی |
 |---|---|---|
+| POST | `/v1/auth/otp/request` | `{phone}` → `{sent, expires_in, resend_in, sms_delivered, debug_code?}` |
+| POST | `/v1/auth/otp/verify` | `{phone, code}` → `{access_token, refresh_token, token_type, expires_in, is_new_user, user}` |
 | POST | `/v1/auth/login` | `{email, password, org_slug?}` → `{access_token, refresh_token, token_type, expires_in, user}` |
 | POST | `/v1/auth/refresh` | `{refresh_token}` → جفت توکن جدید (توکن قبلی باطل می‌شود) |
 | GET | `/v1/auth/me` | کاربر فعلی |
 | POST | `/v1/auth/logout` | `{refresh_token?}` → `{ok: true}` |
 
-خطاها: `auth.invalid_credentials` · `auth.org_not_found` · `auth.user_inactive` ·
-`auth.missing_token` · `auth.token_expired` · `auth.session_expired` · `auth.insufficient_role`
+قواعد OTP: کد ۵ رقمی، اعتبار ۱۲۰ ثانیه، ارسال دوباره پس از ۶۰ ثانیه، حداکثر ۵ تلاش،
+سقف ۱۰ پیامک در روز برای هر شماره و ۳۰ برای هر IP. شماره‌های `۰۹۱۲…`، `+98912…` و `0098912…`
+همه به شکل `09xxxxxxxxx` نرمال می‌شوند. اگر `APP_SMS_ENABLED=false` باشد، کد در لاگ سرور
+(و در صورت `APP_OTP_DEBUG_CODE=true` در پاسخ) دیده می‌شود.
 
-## ۳) پروایدرها
+خطاها: `auth.invalid_phone` · `auth.invalid_credentials` · `auth.org_not_found` · `auth.user_inactive` ·
+`auth.missing_token` · `auth.token_expired` · `auth.session_expired` · `auth.insufficient_role` ·
+`otp.code_invalid` · `otp.code_expired` · `otp.code_not_found` · `otp.too_many_requests` ·
+`otp.too_many_attempts` · `otp.daily_limit`
+
+## ۲.۱) کیف پول و شارژ با زرین‌پال
 
 | متد | مسیر | نقش | توضیح |
 |---|---|---|---|
-| GET | `/v1/provider-adapters` | همه | کاتالوگ ۱۲ آداپتور با عنوان فارسی |
-| GET | `/v1/providers` | همه | فهرست سازمان |
-| POST | `/v1/providers` | admin/owner | ساخت؛ کلید رمزنگاری می‌شود |
-| GET | `/v1/providers/{id}` | همه | جزئیات + `has_credentials`, `api_key_masked` |
-| PATCH | `/v1/providers/{id}` | admin/owner | ویرایش؛ `api_key` جدید = چرخش کلید |
-| DELETE | `/v1/providers/{id}` | admin/owner | حذف همراه مدل‌ها |
-| POST | `/v1/providers/{id}/test` | admin/owner | تست اتصال + شمارش مدل‌ها |
-| POST | `/v1/providers/{id}/sync-models` | admin/owner | `{created, updated, total}` |
-| POST | `/v1/providers/{id}/sync-prices` | admin/owner | `{updated, source}` |
+| GET | `/v1/wallet` | user | `{balance_irr, balance_toman, currency, is_enabled, usd_irr, markup_percent, min_topup_irr, min_topup_toman, topup_enabled}` |
+| GET | `/v1/wallet/transactions?limit=50` | user | صورت‌حساب (هر ردیف `amount_irr` + `amount_toman`) |
+| POST | `/v1/wallet/topup` | user | `{amount_toman, description_fa?}` → `{payment_id, amount_irr, amount_toman, gateway, authority, redirect_url, status}` |
+| GET | `/v1/wallet/payments?limit=20` | user | پرداخت‌های خود کاربر |
+| GET | `/v1/wallet/topup/callback?Authority=…&Status=OK\|NOK` | عمومی | بازگشت درگاه؛ پاسخ **۳۰۳** به `APP_PAYMENT_RETURN_URL` (`kaarvand://wallet?status=paid&payment=…&ref=…`) |
+| GET | `/v1/payments?status=&user_id=&limit=` | admin | حسابداری: همهٔ پرداخت‌ها + نام/موبایل کاربر |
+| GET | `/v1/payments/summary?days=30` | admin | `paid_count/paid_irr`، `pending_count`، `failed_count`، `canceled_count`، `today_paid_irr` |
+| POST | `/v1/payments/{id}/verify` | admin | استعلام دستی از درگاه برای پرداخت جامانده (callback گم‌شده)؛ تکرارش موجودی را دوباره زیاد نمی‌کند |
+
+```json
+POST /v1/wallet/topup   {"amount_toman": 200000}
+→ 201 {"payment_id":"…","amount_irr":2000000,"amount_toman":200000,
+       "gateway":"zarinpal","authority":"A000…","status":"pending",
+       "redirect_url":"https://payment.zarinpal.com/pg/StartPay/A000…"}
+```
+
+قواعد:
+- موجودی به **ریال** ذخیره می‌شود (واحد زرین‌پال) و کلاینت آن را به تومان نشان می‌دهد.
+  ورودی API تومان است و یک‌بار در سرور تبدیل می‌شود.
+- مبلغ کمتر از `APP_MIN_TOPUP_IRR` (پیش‌فرض ۱۰٬۰۰۰ تومان) → `422 wallet.amount_below_min`.
+- پرداخت فقط با `Status=OK` **و** تأیید `verify` (کد `100` یا `101`) و **یک‌بار** کیف پول را شارژ
+  می‌کند؛ تکرار callback (رفرش صفحه) موجودی را دوباره زیاد نمی‌کند.
+- `Status=NOK` → `canceled`، تأیید ناموفق → `failed`؛ هیچ‌کدام موجودی نمی‌سازند.
+- با `APP_PAYMENT_GATEWAY=noop` (پیش‌فرض) پاسخ `409 billing.disabled` است و
+  `topup_enabled=false` در کیف پول برمی‌گردد.
+
+خطاها: `wallet.amount_below_min` · `wallet.disabled` · `wallet.insufficient_balance` ·
+`billing.disabled` · `billing.gateway_not_configured` · `billing.gateway_unreachable` ·
+`billing.gateway_error` · `billing.gateway_bad_response` · `payment.not_found` ·
+`payment.amount_mismatch` · `payment.missing_authority`
+
+## ۳) پروایدرها
+
+> داده‌های پروایدر **فقط برای ادمین** است؛ مشتری هرگز نام پروایدر، کلید یا قیمت دلاری را نمی‌بیند.
+
+| متد | مسیر | نقش | توضیح |
+|---|---|---|---|
+| GET | `/v1/provider-adapters` | admin | کاتالوگ ۱۲ آداپتور با عنوان فارسی |
+| GET | `/v1/providers` | admin | فهرست سازمان |
+| POST | `/v1/providers` | admin | ساخت؛ کلید رمزنگاری می‌شود |
+| GET | `/v1/providers/{id}` | admin | جزئیات + `has_credentials`, `api_key_masked` |
+| PATCH | `/v1/providers/{id}` | admin | ویرایش؛ `api_key` جدید = چرخش کلید |
+| DELETE | `/v1/providers/{id}` | admin | حذف همراه مدل‌ها |
+| POST | `/v1/providers/{id}/test` | admin | تست اتصال + شمارش مدل‌ها |
+| POST | `/v1/providers/{id}/sync-models` | admin | `{created, updated, total}` |
+| POST | `/v1/providers/{id}/sync-prices` | admin | `{updated, source}` |
+
 
 ```json
 POST /v1/providers
@@ -75,14 +125,39 @@ POST /v1/providers
 
 ## ۴) مدل‌ها
 
-| متد | مسیر | توضیح |
-|---|---|---|
-| GET | `/v1/models` | فیلتر: `provider_id`, `capability=tools|vision|audio|reasoning|stream`, `q`, `enabled_only`, `limit`, `offset` |
-| GET | `/v1/models/{id}` | جزئیات |
-| PATCH | `/v1/models/{id}` | نام فارسی، فعال/غیرفعال، markup، context، قابلیت‌ها |
-| POST | `/v1/models/{id}/price` | قیمت دستی + ثبت در تاریخچه |
-| GET | `/v1/models/{id}/prices` | تاریخچه‌ی قیمت |
-| POST | `/v1/models/{id}/probe` | یک فراخوانی واقعی: متن + توکن + هزینه‌ی دلار و تومان |
+> `/v1/models` **فقط ادمین** است (قیمت دلاری، شناسهٔ پروایدر و وضعیت سینک). مشتری از
+> `/v1/catalog/models` استفاده می‌کند که همان مدل‌ها را با **نام فارسی و قیمت تومانی** و
+> بدون هیچ نشانی از پروایدر برمی‌گرداند.
+
+| متد | مسیر | نقش | توضیح |
+|---|---|---|---|
+| GET | `/v1/models` | admin | فیلتر: `provider_id`, `capability=tools|vision|audio|reasoning|stream`, `q`, `enabled_only`, `limit`, `offset` |
+| GET | `/v1/models/{id}` | admin | جزئیات |
+| PATCH | `/v1/models/{id}` | admin | نام فارسی، فعال/غیرفعال، markup، context، قابلیت‌ها |
+| POST | `/v1/models/{id}/price` | admin | قیمت دستی + ثبت در تاریخچه |
+| GET | `/v1/models/{id}/prices` | admin | تاریخچه‌ی قیمت |
+| POST | `/v1/models/{id}/probe` | admin | یک فراخوانی واقعی: متن + توکن + هزینه‌ی دلار و تومان |
+| GET | `/v1/catalog/models` | user | کاتالوگ مشتری: فیلتر `capability`, `modality=text|image|audio`, `family`, `q` |
+| GET | `/v1/catalog/models/{id}` | user | جزئیات همان کاتالوگ |
+
+```json
+GET /v1/catalog/models?capability=vision
+[{"id":"…","name":"جمینای ۲.۵ پرو","family":"gemini","context_window":1000000,
+  "modalities":["text","image"],"capabilities":["tools","vision","stream"],
+  "audio_kind":null,"billing_unit":"per_1m_tokens",
+  "price_input_toman":52000,"price_output_toman":130000,"price_known":true}]
+```
+
+**قیمت فروش** = قیمت دلاری × نرخ ارز × (۱ + حاشیهٔ سود) ÷ ۱۰، نمایش به‌صورت
+«تومان برای هر ۱ میلیون توکن» (صدا: هر دقیقه / هر ۱۰۰۰ کاراکتر). حاشیهٔ سود مدل
+(`markup_percent`) اولویت دارد؛ اگر صفر باشد `APP_PLATFORM_MARKUP_PERCENT` (پیش‌فرض ۳۰٪)
+اعمال می‌شود — همان تابعی که صورتحساب اجرا از آن استفاده می‌کند، پس قیمت نمایشی و
+قیمت کسرشده یکی است.
+
+هیچ‌کدام از این‌ها در پاسخ مشتری نیست: `provider_id`, نام/`base_url` پروایدر،
+`input_price`/`output_price` دلاری، `price_currency`, `price_source`, `external_id`,
+`markup_percent`. مدل غیرفعال یا پروایدر غیرفعال در کاتالوگ دیده نمی‌شود (و جزئیاتش ۴۰۴).
+
 
 ```json
 POST /v1/models/9f…/probe {"prompt":"سلام","max_tokens":64}

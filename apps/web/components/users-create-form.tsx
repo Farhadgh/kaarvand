@@ -17,7 +17,7 @@ export function UsersCreateForm({ canEdit }: { canEdit: boolean }) {
     email: "",
     full_name: "",
     password: "",
-    role: "operator",
+    role: "user",
   });
 
   async function submit(event: React.FormEvent) {
@@ -31,7 +31,7 @@ export function UsersCreateForm({ canEdit }: { canEdit: boolean }) {
         body: JSON.stringify(form),
       });
       setNotice("کاربر ساخته شد.");
-      setForm({ email: "", full_name: "", password: "", role: "operator" });
+      setForm({ email: "", full_name: "", password: "", role: "user" });
       router.refresh();
     } catch (err) {
       setError(messageOf(err));
@@ -73,8 +73,8 @@ export function UsersCreateForm({ canEdit }: { canEdit: boolean }) {
               value={form.role}
               onChange={(event) => setForm({ ...form, role: event.target.value })}
             >
-              <option value="operator">{roles.operator}</option>
-              <option value="viewer">{roles.viewer}</option>
+              <option value="user">{roles.user}</option>
+              
               <option value="admin">{roles.admin}</option>
             </select>
           </Field>

@@ -10,17 +10,21 @@ from app.api.v1 import (
     audio,
     auth,
     billing,
+    catalog,
     connector_ws,
     devices,
     inbound,
     meta,
     models,
+    otp,
+    payments,
     prompts,
     providers,
     runs,
     tools,
     usage,
     users,
+    wallet,
 )
 from app.api.v1 import (
     settings as settings_api,
@@ -29,7 +33,11 @@ from app.api.v1 import (
 api_router = APIRouter()
 api_router.include_router(meta.router)
 api_router.include_router(auth.router)
+api_router.include_router(otp.router)
+api_router.include_router(wallet.router)
 api_router.include_router(billing.router)
+api_router.include_router(payments.router)
+api_router.include_router(catalog.router)
 api_router.include_router(providers.router)
 api_router.include_router(models.router)
 api_router.include_router(prompts.router)

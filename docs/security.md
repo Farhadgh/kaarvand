@@ -44,15 +44,23 @@ python -c "import os,base64;print(base64.urlsafe_b64encode(os.urandom(32)).decod
 
 ## ۴) دسترسی نقش‌محور (RBAC)
 
-| نقش | می‌تواند |
-|---|---|
-| `owner` | همه‌چیز سازمان |
-| `admin` | پروایدر/مدل/ایجنت/ابزار/دستگاه + اجرا |
-| `operator` | ساخت/ویرایش ابزار و پرامپت، اجرای ایجنت، تأیید |
-| `viewer` | فقط خواندن |
+دو نقش داریم، نه بیشتر:
 
-اجرا و تأیید نیاز به `operator` دارند؛ ساخت پروایدر/ایجنت نیاز به `admin`؛ تغییر
-پرامپت و ابزار از `operator` به بالا مجاز است. ابزار/پرامپت **سراسری** برای همه فقط‌خواندنی است.
+| نقش | کیست | می‌تواند |
+|---|---|---|
+| `admin` | کارمند پلتفرم (ایمیل + رمز) | پروایدر، مدل، قیمت، کاربران، حسابداری، مشاهدهٔ هزینهٔ دلاری |
+| `user` | مشتری (فقط OTP موبایل) | کیف پول خودش، ساخت ایجنت/ابزار/کانال/اپ، اجرای ایجنت، کاتالوگ |
+
+قاعده‌ها:
+
+- مسیرهای ادمین با `require_admin` بسته شده‌اند: `/v1/providers`، `/v1/models` (لیست،
+  جزئیات، تاریخچهٔ قیمت)، `/v1/users`، `/v1/payments`، `/v1/billing/*`.
+- مشتری روی منابع خودش کار می‌کند: هر رکورد با `org_id` و `owns_or_admin` بررسی می‌شود؛
+  کیف پول فقط `user_id` خودش را می‌بیند.
+- `/v1/catalog/models` تنها راه دیدن مدل برای مشتری است و **نام فارسی + قیمت تومانی**
+  می‌دهد؛ `provider_id`، `base_url`، قیمت دلاری، `price_source` و `markup_percent` در
+  پاسخ نیست. `cost_usd` در پاسخ اجراها هم برای مشتری `null` می‌شود.
+- ابزار/پرامپت **سراسری** برای همه فقط‌خواندنی است.
 
 ## ۵) تأیید انسانی (Human-in-the-loop)
 
@@ -82,12 +90,24 @@ python -c "import os,base64;print(base64.urlsafe_b64encode(os.urandom(32)).decod
 - ابزار HTTP: `allowed_domains` اجباری + متد محدود + هدر ASCII.
 - بیلتین `http.request`: همان allowlist، بدون کلید.
 
-## ۸) درگاه پرداخت (فاز اول غیرفعال)
+## ۸) درگاه پرداخت
 
-پورت `PaymentGateway` (create/verify/refund/parse_webhook) با پیاده‌سازی `NoopGateway`.
-`POST /billing/checkout` همیشه `409 billing.disabled` می‌دهد. افزودن زرین‌پال:
-یک فایل `billing/zarinpal.py` + ثبت در `GATEWAYS` + `APP_PAYMENT_GATEWAY=zarinpal`.
-تا آن زمان هیچ داده‌ی کارت/پرداختی در سیستم نیست (کاهش دامنه‌ی PCI).
+پورت `PaymentGateway` با دو پیاده‌سازی: `NoopGateway` (پیش‌فرض، همه‌چیز ۴۰۹/۵۰۳) و
+`zarinpal` (واقعی). تا وقتی `APP_PAYMENT_GATEWAY=noop` باشد هیچ داده‌ی پرداختی در
+سیستم نیست.
+
+کنترل‌های زرین‌پال:
+
+| تهدید | کنترل |
+|---|---|
+| بازپرداخت/تأیید جعلی callback | `verify` سمت سرور با `authority` + `amount`؛ مبلغ از رکورد ما خوانده می‌شود نه از کوئری |
+| دو بار شارژ با یک پرداخت | ردیف پرداخت قبل از ریدایرکت ساخته می‌شود؛ `apply_callback` با `FOR UPDATE` روی `payer`، `paid` را زودتر برمی‌گرداند، کد `101` (already verified) هم پذیرفته می‌شود |
+| گم‌شدن callback | `POST /v1/payments/{id}/verify` ادمین، همان تابع idempotent را دوباره اجرا می‌کند |
+| نشت بین مستأجرها | `payments` زیر RLS؛ callback با `set_bypass_rls` پیدا می‌کند و بعد `set_tenant` می‌بندد |
+| ثبت کارت در سیستم | هیچ داده‌ی کارتی ذخیره نمی‌شود (فقط `authority`/`ref_id`) |
+
+تنظیمات لازم: `APP_PAYMENT_GATEWAY=zarinpal`، `APP_ZARINPAL_MERCHANT_ID`،
+`APP_PAYMENT_CALLBACK_URL` (باید عمومی و https باشد)، `APP_ZARINPAL_SANDBOX=false`.
 
 ## ۹) حسابرسی و نگهداشت
 

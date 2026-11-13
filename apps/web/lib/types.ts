@@ -1,6 +1,6 @@
 /** Shared API types (mirror of the FastAPI schemas). */
 
-export type Role = "owner" | "admin" | "operator" | "viewer";
+export type Role = "admin" | "user";
 
 export interface ApiError {
   error: { code: string; params?: Record<string, unknown> };
@@ -93,6 +93,37 @@ export interface Model {
   price_synced_at: string | null;
   markup_percent: string;
   is_enabled: boolean;
+}
+
+export interface PaymentSummary {
+  days: number;
+  paid_count: number;
+  paid_irr: number;
+  paid_toman: number;
+  pending_count: number;
+  failed_count: number;
+  canceled_count: number;
+  today_paid_irr: number;
+  today_paid_toman: number;
+}
+
+export type PaymentStatus = "pending" | "paid" | "canceled" | "failed";
+
+/** Wallet top-up row, as the admin accounting page sees it. */
+export interface Payment {
+  id: string;
+  amount_irr: number;
+  amount_toman: number;
+  status: PaymentStatus;
+  gateway: string;
+  authority: string | null;
+  reference: string | null;
+  description_fa: string | null;
+  paid_at: string | null;
+  created_at: string | null;
+  user_id: string;
+  user_phone: string | null;
+  user_name: string | null;
 }
 
 export interface Prompt {

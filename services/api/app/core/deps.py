@@ -75,3 +75,20 @@ def require_roles(*roles: str):
         return user
 
     return _dependency
+
+
+# Two roles only: platform staff and customers. ``require_admin`` guards the
+# panel (providers, prices, other people's wallets); ``require_member`` is
+# "any signed in account" and is what customer facing endpoints use.
+ADMIN_ROLE = "admin"
+CUSTOMER_ROLE = "user"
+ALL_ROLES = (ADMIN_ROLE, CUSTOMER_ROLE)
+
+require_admin = require_roles(ADMIN_ROLE)
+require_member = require_roles(*ALL_ROLES)
+
+
+def owns_or_admin(actor: User, owner_id: uuid.UUID | None) -> bool:
+    """Ownership rule for per user resources (agents, channels, devices, runs)."""
+    return actor.role == ADMIN_ROLE or owner_id == actor.id
+

@@ -166,9 +166,9 @@ async def viewer_headers(client: Any, admin_tokens: dict[str, Any]) -> dict[str,
             User(
                 org_id=_uuid.UUID(org_id),
                 email=email,
-                full_name="کاربر بیننده",
+                full_name="کاربر عادی",
                 password_hash=hash_password(password),
-                role="viewer",
+                role="user",
             )
         )
 
