@@ -153,24 +153,28 @@ async def account_report(
 ) -> dict[str, Any]:
     """Balance, accessible lines and patterns — what ``python -m app.cli sms-check`` prints.
 
-    A wrong key answers ``401`` with ``{"status": "error"}``; ``raise_for_status``
-    lets the caller show that instead of a vague "SMS failed".
+    A failing endpoint does not hide the others: each error lands in
+    ``report["errors"]`` so an operator sees "balance ok, patterns timeout"
+    instead of one vague failure.
     """
     cfg = settings or get_settings()
     base = cfg.farazsms_base_url.rstrip("/")
 
     owns_client = client is None
     http = client or httpx.AsyncClient(timeout=cfg.sms_timeout_seconds)
+    report: dict[str, Any] = {"errors": {}}
     try:
-        report: dict[str, Any] = {}
         for name, path in (
             ("balance", BALANCE_PATH),
             ("lines", LINES_PATH),
             ("patterns", PATTERNS_PATH),
         ):
-            response = await http.get(f"{base}{path}", headers=_headers(cfg))
-            response.raise_for_status()
-            report[name] = response.json().get("data")
+            try:
+                response = await http.get(f"{base}{path}", headers=_headers(cfg))
+                response.raise_for_status()
+                report[name] = response.json().get("data")
+            except (httpx.HTTPError, ValueError) as exc:
+                report["errors"][name] = f"{type(exc).__name__}: {exc}".rstrip(": ")
         return report
     finally:
         if owns_client:

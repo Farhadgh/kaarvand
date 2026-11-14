@@ -158,9 +158,24 @@ async def test_account_report_reads_balance_lines_and_patterns() -> None:
         report = await account_report(_settings(), client=http)
 
     assert seen == ["/ws/v1/account/balance", "/ws/v1/lines/accessible", "/ws/v1/patterns"]
+    assert report["errors"] == {}
     assert report["balance"]["balance_amount"] == "100000"
     assert report["lines"][0]["number"] == "50002178584000"
     assert report["patterns"]["data"][0]["code"] == "tHtKn7CJSK"
+
+
+async def test_account_report_keeps_the_other_endpoints_when_one_fails() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/ws/v1/lines/accessible":
+            raise httpx.ReadTimeout("timed out", request=request)
+        return httpx.Response(200, json={"status": "success", "message": "", "data": {"data": []}})
+
+    async with _client(handler) as http:
+        report = await account_report(_settings(), client=http)
+
+    assert "lines" not in report
+    assert report["errors"]["lines"].startswith("ReadTimeout")
+    assert report["patterns"] == {"data": []}
 
 
 async def test_missing_line_number_is_a_failure() -> None:

@@ -21,7 +21,6 @@ import asyncio
 import getpass
 import sys
 
-import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -110,11 +109,8 @@ async def sms_check() -> int:
     """What the gateway says about this key: balance, lines and patterns."""
     settings = get_settings()
     _sms_summary(settings)
-    try:
-        report = await account_report(settings)
-    except httpx.HTTPError as exc:
-        print(f"gateway error: {exc}", file=sys.stderr)
-        return 1
+    report = await account_report(settings)
+    errors = report.get("errors") or {}
 
     balance = report.get("balance") or {}
     print(
@@ -130,7 +126,10 @@ async def sms_check() -> int:
             str(attr.get("var") or attr.get("name")) for attr in row.get("attributes") or []
         )
         print(f"  {row.get('code')}  {row.get('status')}  «{row.get('text')}»  [{attrs}]")
-    return 0
+
+    for name, message in errors.items():
+        print(f"error {name}: {message}", file=sys.stderr)
+    return 1 if errors else 0
 
 
 async def sms_test(phone: str) -> int:
