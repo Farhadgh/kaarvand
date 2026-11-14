@@ -26,8 +26,8 @@ PostgreSQL همهٔ ردیف‌ها را فیلتر کرد، دستور **صفر
 | `tests/test_roles.py` (جدید) | ۶ تست: ادمین seed شده `admin` می‌ماند، فقط دو نقش در دیتابیس، `owner` با `IntegrityError` رد می‌شود، `/v1/models` برای مهمان ۴۰۱ / مشتری ۴۰۳ / ادمین ۲۰۰، CLI دسترسی پنل را برمی‌گرداند، خطای حساب ناشناس و رمز کوتاه |
 | `apps/web/app/(panel)/layout.tsx` · `components/logout-button.tsx` (جدید) | پیام قفل، ایمیل/شمارهٔ حساب را نشان می‌دهد و دکمهٔ خروج واقعاً `POST /api/auth/logout` می‌زند (لینک `GET` قبلی ۴۰۵ برمی‌گرداند و کاربر در بن‌بست می‌ماند) |
 
-**شاهد:** `pytest tests/test_roles.py` → **۶ passed** · `ruff check app tests` پاک ·
-`npm run build` در `apps/web` سبز (Compiled successfully + type check).
+**شاهد:** `pytest tests/test_roles.py` → **۶ passed** · کل مجموعه **۳۰۰ passed** ·
+`ruff check app tests` پاک · `npm run build` در `apps/web` سبز (Compiled successfully + type check).
 
 **شاهد زنده (تولید، `9ee3d8e`):**
 
