@@ -1,15 +1,17 @@
-"""Operational CLI for accounts: the break-glass path when the panel is locked.
+"""Operational CLI: accounts (break-glass) and SMS/OTP delivery checks.
 
 Run::
 
     python -m app.cli list-users
     python -m app.cli promote-admin admin@kaarvand.amigok.cloud
     python -m app.cli set-password admin@kaarvand.amigok.cloud [--password ***]
+    python -m app.cli sms-check                 # balance, lines, patterns
+    python -m app.cli sms-test 09121234567      # one real message
 
-Why this exists: ``users`` is protected by *forced* row level security (0008), so
-a statement executed without ``app.bypass_rls`` matches zero rows and still
-reports success — exactly how migration 0014 left the only admin as ``owner``
-and locked the panel. Every query below therefore runs with ``bypass_rls=True``.
+Why ``bypass_rls`` below: ``users`` is protected by *forced* row level security
+(0008), so a statement executed without ``app.bypass_rls`` matches zero rows and
+still reports success — exactly how migration 0014 left the only admin as
+``owner`` and locked the panel.
 """
 
 from __future__ import annotations
@@ -19,13 +21,16 @@ import asyncio
 import getpass
 import sys
 
+import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import Settings, get_settings
 from app.core.deps import ADMIN_ROLE
 from app.core.security import hash_password
 from app.db.models import User
 from app.db.session import dispose_engine, session_scope
+from app.notifications.sms import account_report, send_otp
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -91,6 +96,63 @@ def _prompt_password() -> str:
     return first
 
 
+def _sms_summary(settings: Settings) -> None:
+    key = "set" if settings.farazsms_api_key else "MISSING"
+    print(
+        f"gateway: {settings.farazsms_base_url}  key: {key}  "
+        f"line: {settings.farazsms_sender or 'MISSING'}  "
+        f"pattern: {settings.farazsms_otp_pattern or '(simple sms)'}  "
+        f"enabled: {settings.sms_enabled}"
+    )
+
+
+async def sms_check() -> int:
+    """What the gateway says about this key: balance, lines and patterns."""
+    settings = get_settings()
+    _sms_summary(settings)
+    try:
+        report = await account_report(settings)
+    except httpx.HTTPError as exc:
+        print(f"gateway error: {exc}", file=sys.stderr)
+        return 1
+
+    balance = report.get("balance") or {}
+    print(
+        f"balance: {balance.get('balance_amount')} toman ({balance.get('balance_count')} messages)"
+    )
+    lines = report.get("lines") or []
+    print("lines:", ", ".join(str(row.get("number")) for row in lines) or "none")
+
+    patterns = (report.get("patterns") or {}).get("data") or []
+    print("patterns:")
+    for row in patterns:
+        attrs = ", ".join(
+            str(attr.get("var") or attr.get("name")) for attr in row.get("attributes") or []
+        )
+        print(f"  {row.get('code')}  {row.get('status')}  «{row.get('text')}»  [{attrs}]")
+    return 0
+
+
+async def sms_test(phone: str) -> int:
+    """Send one real message (dummy code 12345) to prove the line works."""
+    settings = get_settings()
+    _sms_summary(settings)
+    if not settings.sms_enabled:
+        print("APP_SMS_ENABLED is false: nothing was sent", file=sys.stderr)
+        return 1
+
+    delivered = await send_otp(phone, "12345", settings=settings)
+    print(f"delivered={delivered}")
+    if not delivered:
+        print(
+            "the gateway refused it: run `python -m app.cli sms-check` "
+            "(line must be accessible, pattern must be approved)",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli",
@@ -108,6 +170,11 @@ def build_parser() -> argparse.ArgumentParser:
     reset = commands.add_parser("set-password", help="set a new password for an account")
     reset.add_argument("email")
     reset.add_argument("--password", help="skip the interactive prompt (for scripts)")
+
+    commands.add_parser("sms-check", help="gateway balance, lines and OTP patterns")
+
+    sms_test = commands.add_parser("sms-test", help="send one real test message")
+    sms_test.add_argument("phone")
     return parser
 
 
@@ -117,6 +184,10 @@ async def _run(args: argparse.Namespace) -> int:
             return await list_users()
         if args.command == "promote-admin":
             return await promote_admin(args.email)
+        if args.command == "sms-check":
+            return await sms_check()
+        if args.command == "sms-test":
+            return await sms_test(args.phone)
         password = args.password or _prompt_password()
         return await set_password(args.email, password)
     finally:

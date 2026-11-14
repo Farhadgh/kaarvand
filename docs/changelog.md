@@ -2,6 +2,44 @@
 
 هر قدم با «شاهد» ثبت شده است؛ یعنی چیزی که واقعاً اجرا شده، نه ادعا.
 
+## پیامک OTP با ایران‌پیامک (FarazSMS v2): ثبت‌نام و ورود مشتری ✔
+
+**مسئله:** کلاینت پیامک برای یک API قدیمی نوشته شده بود (`api2.farazsms.com/api/igm`،
+هدر `Authorization`، بدنهٔ `pattern_code/originator/values`) و با سرویس واقعی
+[ایران‌پیامک](https://docs.iranpayamak.com) کار نمی‌کرد. بدتر: هر پاسخ `2xx` را «ارسال شد»
+حساب می‌کرد، در حالی که این سرویس خطاها را با `200` و `{"status":"error"}` برمی‌گرداند —
+یعنی خطِ اشتباه یا الگوی تأییدنشده بی‌صدا «موفق» گزارش می‌شد.
+
+**نتیجه:** کلاینت به قرارداد مستندشده منتقل شد: `POST /ws/v1/sms/pattern` با
+`{code, recipient, attributes:{code}, line_number, number_format}`، هدر `Api-Key`،
+و پذیرش فقط وقتی بدنه `status == "success"` دارد. دو دستور ops اضافه شد تا این
+یکپارچه‌سازی بدون curl دستی قابل بررسی باشد: `sms-check` و `sms-test`.
+
+| فایل | تغییر |
+|---|---|
+| `notifications/sms.py` | بازنویسی برای ایران‌پیامک: `Api-Key`، `/ws/v1/sms/pattern` و `/ws/v1/sms/simple`، بررسی `status` بدنه، نام متغیر الگو قابل تنظیم، لاگ خطای واقعی؛ `account_report` برای موجودی/خطوط/الگوها |
+| `core/config.py` | `farazsms_base_url` پیش‌فرض `https://api.iranpayamak.com`، `farazsms_otp_pattern_var` (پیش‌فرض `code`)، توضیح `farazsms_sender` = `line_number` |
+| `app/cli.py` | `sms-check` (موجودی، خطوط دسترسی، وضعیت الگوها) و `sms-test <phone>` (یک پیامک واقعی) |
+| `tests/test_sms.py` (جدید) | ۸ تست: بدنهٔ دقیق pattern، هدر `Api-Key`، متغیر قابل تنظیم، **`200` + `status:error` = شکست**، مسیر simple، خطای شبکه بدون exception، خاموش‌بودن SMS، نبودِ خط، و گزارش حساب |
+| `.env.example` · `docs/deploy.md` · `docs/api.md` | متغیرها و مسیرهای درست + این قاعده که الگوی `%code%` باید **approved** باشد |
+
+**شاهد (زنده، با کلید واقعی):**
+
+```
+GET  /ws/v1/account/balance    → {"balance_amount":"100000","balance_count":"450.45"}
+GET  /ws/v1/lines/accessible   → 90008361, 50002178584000, 3000505, PRO, 217000078584000, 10008515
+GET  /ws/v1/patterns           → tHtKn7CJSK pending «کاروند: کد ورود شما %code%»
+                                 3bwQv8EKgg pending «به آمیگوک خوش آمدید» (بدون متغیر)
+                                 17licteywttplw4 rejected (متغیر نامعتبر `verification-code`)
+POST /ws/v1/sms/simple         → 200 {"status":"success","data":{"id":31230603,"status":"pending-approval"}}
+POST /ws/v1/sms/pattern        → 404 «داده درخواستی یافت نشد»  (الگو هنوز approved نیست)
+pytest tests/test_sms.py       → 8 passed
+```
+
+**گام آخر (فقط با تأیید ایران‌پیامک):** الگوی `tHtKn7CJSK` باید در پنل approved شود؛ بعد
+`APP_SMS_ENABLED=true` و `APP_OTP_DEBUG_CODE=false` و ری‌استارت. تا آن لحظه کد در پاسخ
+API برمی‌گردد (همان رفتار فعلی) تا هیچ مشتری بیرون نماند.
+
 ## نقش‌ها: دو مقدار، و پنلی که دیگر قفل نمی‌شود ✔
 
 **مسئله (باگ تولید):** بعد از استقرار فاز ۳، ورود ادمین به پنل با پیام «این پنل مخصوص

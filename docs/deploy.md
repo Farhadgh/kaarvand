@@ -55,10 +55,15 @@ APP_OTP_RESEND_COOLDOWN_SECONDS=60
 APP_OTP_DAILY_LIMIT_PER_PHONE=10
 APP_OTP_DAILY_LIMIT_PER_IP=30
 APP_OTP_DEBUG_CODE=false        # در prod باید false بماند
-APP_SMS_ENABLED=true            # تا کلید فراز اس‌ام‌اس نرسیده، false بگذارید
-APP_FARAZSMS_API_KEY=***
-APP_FARAZSMS_SENDER=+98...
-APP_FARAZSMS_OTP_PATTERN=***    # کد الگوی تأییدشده؛ خالی = متن ساده
+APP_SMS_ENABLED=true            # false تا الگوی OTP تأیید شود (بخش پیامک)
+APP_SMS_PROVIDER=iranpayamak
+APP_FARAZSMS_BASE_URL=https://api.iranpayamak.com
+APP_FARAZSMS_API_KEY=***            # کلید پنل ایران‌پیامک (هدر Api-Key)
+APP_FARAZSMS_SENDER=50002178584000  # خط ارسال (line_number)
+APP_FARAZSMS_OTP_PATTERN=tHtKn7CJSK    # کد الگوی تأییدشده؛ خالی = متن ساده
+APP_FARAZSMS_OTP_PATTERN_VAR=code
+APP_SMS_TIMEOUT_SECONDS=10
+
 
 # --- قیمت‌گذاری تومانی -----------------------------------------------------
 APP_PLATFORM_MARKUP_PERCENT=30
@@ -116,6 +121,9 @@ cd /opt/kaarvand/services/api
 sudo -u kaarvand .venv/bin/python -m app.cli list-users
 sudo -u kaarvand .venv/bin/python -m app.cli promote-admin admin@kaarvand.amigok.cloud
 sudo -u kaarvand .venv/bin/python -m app.cli set-password admin@kaarvand.amigok.cloud
+# پیامک: موجودی/خطوط/وضعیت الگوها و یک ارسال آزمایشی
+sudo -u kaarvand .venv/bin/python -m app.cli sms-check
+sudo -u kaarvand .venv/bin/python -m app.cli sms-test 09121234567
 
 # ۲) psql با نقش postgres
 sudo -u postgres psql -d kaarvand \

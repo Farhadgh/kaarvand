@@ -52,6 +52,20 @@ GET /v1/meta
 همه به شکل `09xxxxxxxxx` نرمال می‌شوند. اگر `APP_SMS_ENABLED=false` باشد، کد در لاگ سرور
 (و در صورت `APP_OTP_DEBUG_CODE=true` در پاسخ) دیده می‌شود.
 
+**ارسال پیامک (ایران‌پیامک / FarazSMS v2 — https://docs.iranpayamak.com):** کلید در هدر
+`Api-Key` و بدنهٔ پاسخ تعیین‌کننده است، نه کد HTTP (خطاها معمولاً با `200` و
+`{"status":"error"}` می‌آیند):
+
+| مسیر | کاربرد |
+|---|---|
+| `POST /ws/v1/sms/pattern` | الگوی تأییدشده: `{code, recipient, attributes:{code}, line_number, number_format}` — روش اصلی OTP |
+| `POST /ws/v1/sms/simple` | متن آزاد (فقط آزمایشی؛ در خطوط اشتراکی «در انتظار تأیید» می‌ماند) |
+| `GET /ws/v1/account/balance` · `/ws/v1/lines/accessible` · `/ws/v1/patterns` | بررسی اعتبار، خطوط و الگوها |
+
+> **الگو باید approved باشد:** تا وقتی الگوی `%code%` تأیید نشده، `/ws/v1/sms/pattern` با
+> «داده درخواستی یافت نشد» رد می‌شود و `sms_delivered:false` برمی‌گردد. بررسی سریع:
+> `python -m app.cli sms-check` و ارسال آزمایشی: `python -m app.cli sms-test 0912…`.
+
 خطاها: `auth.invalid_phone` · `auth.invalid_credentials` · `auth.org_not_found` · `auth.user_inactive` ·
 `auth.missing_token` · `auth.token_expired` · `auth.session_expired` · `auth.insufficient_role` ·
 `otp.code_invalid` · `otp.code_expired` · `otp.code_not_found` · `otp.too_many_requests` ·

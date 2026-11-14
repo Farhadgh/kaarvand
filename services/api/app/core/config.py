@@ -86,14 +86,17 @@ class Settings(BaseSettings):
     # dev convenience: return the generated code in the API response
     otp_debug_code: bool = False
 
-    # --- SMS (FarazSMS) -----------------------------------------------------
+    # --- SMS (IranPayamak / FarazSMS v2, https://docs.iranpayamak.com) ------
     sms_enabled: bool = False
-    sms_provider: str = "farazsms"
-    farazsms_base_url: str = "https://api2.farazsms.com/api/igm"
+    sms_provider: str = "iranpayamak"
+    farazsms_base_url: str = "https://api.iranpayamak.com"
     farazsms_api_key: str = ""
+    # the sender line (``line_number`` in the API, e.g. 50002178584000)
     farazsms_sender: str = ""
-    # pattern (الگو) code used for the OTP message; falls back to plain text
+    # approved pattern UID (``code`` in /ws/v1/sms/pattern); empty -> simple sms
     farazsms_otp_pattern: str = ""
+    # name of the pattern attribute that carries the code (``attributes`` map)
+    farazsms_otp_pattern_var: str = "code"
     sms_timeout_seconds: float = 10.0
 
     # --- scheduler (cron worker, see ``python -m app.workers.scheduler``) --
