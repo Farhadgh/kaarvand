@@ -20,6 +20,7 @@ import getpass
 import sys
 
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import ADMIN_ROLE
 from app.core.security import hash_password
@@ -29,10 +30,8 @@ from app.db.session import dispose_engine, session_scope
 MIN_PASSWORD_LENGTH = 8
 
 
-async def _find_user(db: object, email: str) -> User | None:
-    result = await db.execute(  # type: ignore[attr-defined]
-        select(User).where(func.lower(User.email) == email.strip().lower())
-    )
+async def _find_user(db: AsyncSession, email: str) -> User | None:
+    result = await db.execute(select(User).where(func.lower(User.email) == email.strip().lower()))
     return result.scalar_one_or_none()
 
 

@@ -24,15 +24,34 @@ PostgreSQL همهٔ ردیف‌ها را فیلتر کرد، دستور **صفر
 | `app/cli.py` (جدید) | `list-users`، `promote-admin <email>`، `set-password <email>`؛ همه با `bypass_rls=True` (بدون آن، همان تلهٔ «صفر ردیف») |
 | `runtime/inbound.py` · `runtime/starter.py` | باقی‌ماندهٔ نقش قدیمی: `User.role != "owner"` → `User.role != ADMIN_ROLE` |
 | `tests/test_roles.py` (جدید) | ۶ تست: ادمین seed شده `admin` می‌ماند، فقط دو نقش در دیتابیس، `owner` با `IntegrityError` رد می‌شود، `/v1/models` برای مهمان ۴۰۱ / مشتری ۴۰۳ / ادمین ۲۰۰، CLI دسترسی پنل را برمی‌گرداند، خطای حساب ناشناس و رمز کوتاه |
+| `apps/web/app/(panel)/layout.tsx` · `components/logout-button.tsx` (جدید) | پیام قفل، ایمیل/شمارهٔ حساب را نشان می‌دهد و دکمهٔ خروج واقعاً `POST /api/auth/logout` می‌زند (لینک `GET` قبلی ۴۰۵ برمی‌گرداند و کاربر در بن‌بست می‌ماند) |
 
-**شاهد:** `pytest tests/test_roles.py` → **۶ passed** · `ruff check app tests` پاک.
-**شاهد زنده (تولید):**
+**شاهد:** `pytest tests/test_roles.py` → **۶ passed** · `ruff check app tests` پاک ·
+`npm run build` در `apps/web` سبز (Compiled successfully + type check).
+
+**شاهد زنده (تولید، `9ee3d8e`):**
 
 ```
 update users set role='admin' where email='admin@kaarvand.amigok.cloud'   → UPDATE 1
-select email, role, is_active, (password_hash is not null) from users
-  → admin@kaarvand.amigok.cloud | admin | t | t
+alembic upgrade head → INFO Running upgrade 0015 -> 0016, exactly two user roles…
+select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid='users'::regclass
+  → ck_users_role | CHECK (role = ANY (ARRAY['admin'::varchar, 'user'::varchar]))
+select relrowsecurity, relforcerowsecurity from pg_class where relname='users' → t | t
+
+python -m app.cli list-users
+  role   active  password  email                          phone
+  admin  True    True      admin@kaarvand.amigok.cloud    -
+  user   True    False     -                              09121010195
+
+GET /v1/auth/me (توکن ادمین)  → 200   {"id":"68f9…","email":"admin@kaarvand.amigok.cloud",…}
+GET /v1/models   (توکن ادمین) → 200   [{"id":"0c11…","provider_id":"ab4e…",…}]
+GET /v1/models   (توکن مشتری)→ 403   {"error":{"code":"auth.insufficient_role","required":["admin"]}}
+GET /v1/auth/login (رمز غلط)  → 401   {"error":{"code":"auth.invalid_credentials"}}
 ```
+
+> نکتهٔ اسم: قرارداد نام‌گذاری `ck_<table>_<name>` باعث شد `name="ck_users_role"`
+> به `ck_users_ck_users_role` تبدیل شود؛ در `9ee3d8e` مقدار `name="role"` شد تا
+> هم مدل، هم مایگریشن و هم مستندات دقیقاً `ck_users_role` باشند.
 
 ## کاتالوگ مشتری: مدل با قیمت تومانی، بدون افشای پروایدر ✔
 
