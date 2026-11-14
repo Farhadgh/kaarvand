@@ -33,7 +33,8 @@ GET  /ws/v1/patterns           → tHtKn7CJSK pending «کاروند: کد ور�
                                  17licteywttplw4 rejected (متغیر نامعتبر `verification-code`)
 POST /ws/v1/sms/simple         → 200 {"status":"success","data":{"id":31230603,"status":"pending-approval"}}
 POST /ws/v1/sms/pattern        → 404 «داده درخواستی یافت نشد»  (الگو هنوز approved نیست)
-pytest tests/test_sms.py       → 8 passed
+کلاینت خود اپ (با APP_SMS_ENABLED=true به‌صورت موقت) → همان 404، delivered=False
+pytest tests/test_sms.py       → 8 passed   ·   کل مجموعه → 308 passed
 ```
 
 **گام آخر (فقط با تأیید ایران‌پیامک):** الگوی `tHtKn7CJSK` باید در پنل approved شود؛ بعد
