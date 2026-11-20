@@ -55,12 +55,12 @@ APP_OTP_RESEND_COOLDOWN_SECONDS=60
 APP_OTP_DAILY_LIMIT_PER_PHONE=10
 APP_OTP_DAILY_LIMIT_PER_IP=30
 APP_OTP_DEBUG_CODE=false        # در prod باید false بماند
-APP_SMS_ENABLED=true            # فقط وقتی الگوی OTP تأیید شد؛ تا آن زمان false
+APP_SMS_ENABLED=true            # true = ارسال واقعی؛ false = کد فقط در لاگ (توسعه)
 APP_SMS_PROVIDER=iranpayamak
 APP_FARAZSMS_BASE_URL=https://api.iranpayamak.com
 APP_FARAZSMS_API_KEY=***            # کلید پنل ایران‌پیامک (هدر Api-Key)
 APP_FARAZSMS_SENDER=50002178584000  # خط ارسال (line_number)
-APP_FARAZSMS_OTP_PATTERN=tHtKn7CJSK # شناسهٔ الگوی approved؛ خالی = پیامک متن ساده
+APP_FARAZSMS_OTP_PATTERN=3bwQv8EKgg # شناسهٔ الگوی active؛ خالی = پیامک متن ساده
 APP_FARAZSMS_OTP_PATTERN_VAR=code
 APP_SMS_TIMEOUT_SECONDS=10
 
@@ -164,10 +164,11 @@ sudo -u postgres pg_restore -d kaarvand --clean /root/kaarvand-YYYY-MM-DD.dump
    ارسال نمی‌شود؛ راه‌حل `proxy` در `config` ابزار تلگرام است (کلاینت‌ها `trust_env=False`
    هستند و پروکسی سیستم را نمی‌خوانند).
 4. **رمز ادمین اولیه** را بعد از اولین ورود از «کاربران → بازنشانی رمز» عوض کنید.
-5. **تا وقتی پیامک فعال نشده** (`APP_SMS_ENABLED=false`) روی سرور `APP_OTP_DEBUG_CODE=true`
-   گذاشته شده تا مشتری بتواند وارد شود؛ در این حالت کد در پاسخ همان درخواست برمی‌گردد.
-   به‌محض رسیدن کلید فراز اس‌ام‌اس، `APP_SMS_ENABLED=true` و `APP_OTP_DEBUG_CODE=false`
-   را با هم ست کنید و سرویس را ری‌استارت کنید.
+5. **پیامک از ۱۳:۱۵ UTC روشن است**: `APP_SMS_ENABLED=true` و `APP_FARAZSMS_OTP_PATTERN`
+   روی الگوی **active** حساب (`3bwQv8EKgg`) است. `APP_OTP_DEBUG_CODE` (پیش‌فرض `false`)
+   ست نشده، پس کد در پاسخ API برنمی‌گردد. اگر الگوی اختصاصی «کاروند» تأیید شد، فقط
+   `APP_FARAZSMS_OTP_PATTERN` را عوض کنید. برای تشخیص: `sms-check` سپس `sms-test`.
+   (هر دو دستور را با کاربر `kaarvand` اجرا کنید تا `.env` خوانده شود.)
 6. **کلاینت** (`apps/client`) هیچ ارجاعی به پروایدر/قیمت دلاری ندارد؛ فقط
    `/v1/catalog/models`، `/v1/wallet*` و اجراها را صدا می‌زند. اگر مسیر جدیدی اضافه
    کردید، همان قاعده را نگه دارید (تست `test_catalog.py` این را قفل می‌کند).

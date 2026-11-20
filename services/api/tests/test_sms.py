@@ -20,7 +20,7 @@ import httpx
 
 from app.notifications.sms import account_report, send_otp
 
-PHONE = "09121234567"
+PHONE = "09122900425"
 CODE = "54321"
 LINE = "50002178584000"
 PATTERN = "SJ3FgPrE0C"

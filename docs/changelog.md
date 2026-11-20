@@ -28,24 +28,41 @@
 ```
 GET  /ws/v1/account/balance    → {"balance_amount":"100000","balance_count":"450.45"}
 GET  /ws/v1/lines/accessible   → 90008361, 50002178584000, 3000505, PRO, 217000078584000, 10008515
-GET  /ws/v1/patterns           → tHtKn7CJSK pending «کاروند: کد ورود شما %code%»
-                                 3bwQv8EKgg pending «به آمیگوک خوش آمدید» (بدون متغیر)
+GET  /ws/v1/patterns           → 3bwQv8EKgg active  [code]   ← الگوی استفاده‌شده
+                                 tHtKn7CJSK rejected «کاروند: کد ورود شما %code%»
                                  17licteywttplw4 rejected (متغیر نامعتبر `verification-code`)
 POST /ws/v1/sms/simple         → 200 {"status":"success","data":{"id":31230603,"status":"pending-approval"}}
-POST /ws/v1/sms/pattern        → 404 «داده درخواستی یافت نشد»  (الگو هنوز approved نیست)
-کلاینت خود اپ (با APP_SMS_ENABLED=true به‌صورت موقت) → همان 404، delivered=False
-pytest tests/test_sms.py       → 8 passed   ·   کل مجموعه → 308 passed
+POST /ws/v1/sms/pattern        → 404 «داده درخواستی یافت نشد»  (برای الگوی rejected)
+pytest tests/test_sms.py       → 9 passed
 ```
 
-**گام آخر (فقط با تأیید ایران‌پیامک):** الگوی `tHtKn7CJSK` باید در پنل approved شود؛ بعد
-`APP_SMS_ENABLED=true` و `APP_OTP_DEBUG_CODE=false` و ری‌استارت. تا آن لحظه کد در پاسخ
-API برمی‌گردد (همان رفتار فعلی) تا هیچ مشتری بیرون نماند.
+**گام آخر انجام شد — با یک پیچ:** الگوی اختصاصی `tHtKn7CJSK` در بازبینی ایران‌پیامک
+**rejected** شد (متن بدون دامنه/برند بود)، ولی همان حساب یک الگوی **active** با متغیر
+`code` داشت: `3bwQv8EKgg` («به آمیگوک خوش آمدید.amigook.ir کد ورود به سامانه : %code%»).
+پس فقط شناسهٔ الگو عوض شد و پیامک واقعی رفت:
 
-> **وضعیت لحظهٔ تحویل:** خودِ سرویس ایران‌پیامک از حدود ۱۲:۵۰ UTC پاسخ نمی‌دهد
-> (`curl -m 8` → `EXIT=28`، در حالی که پورت ۴۴۳ باز است و `docs.iranpayamak.com` کد ۲۰۰
-> می‌دهد؛ از بیرون هم تایم‌اوت). پس قبل از روشن‌کردن `APP_SMS_ENABLED` حتماً
-> `python -m app.cli sms-check` و بعد `sms-test` را اجرا کنید تا هم دسترس‌بودن سرویس و هم
-> تأیید الگو ثابت شود.
+```
+آزمون موقت بدون تغییر .env:
+  APP_SMS_ENABLED=true .venv/bin/python -m app.cli sms-test 09121010195 → delivered=True
+پس از ثبت در .env و ری‌استارت:
+  POST /v1/auth/otp/request {"phone":"09121010195"}
+  → {"sent":true,"expires_in":120,"resend_in":60,"sms_delivered":true,"debug_code":null}
+```
+
+یعنی حالا `APP_SMS_ENABLED=true` است و `debug_code` (که پیش‌فرضش `false` بود) خالی
+برمی‌گردد — مشتری کد را فقط با پیامک می‌گیرد.
+
+> **برای الگوی اختصاصی «کاروند»:** متن باید نام/دامنهٔ سرویس را داشته باشد (الگوی
+> تأییدشده هم `amigook.ir` را داخل متن دارد). مثلاً
+> `کاروند | kaarvand.amigok.cloud%nکد ورود شما: %code%` را ثبت کنید و پس از `active` شدن
+> فقط `APP_FARAZSMS_OTP_PATTERN=<code>` را عوض و سرویس را ری‌استارت کنید؛ هیچ تغییر کدی
+> لازم نیست. علت رد شدن هر الگو در پنل ایران‌پیامک زیر همان ردیف نوشته می‌شود و API آن را
+> برنمی‌گرداند.
+
+> **درس ops:** سرویس ایران‌پیامک حدود ۲۰ دقیقه (۱۲:۵۰ تا ۱۳:۱۰ UTC) کامل تایم‌اوت می‌داد
+> در حالی که پورت ۴۴۳ باز و دامنهٔ docs سالم بود. `sms-check` را قبل از هر تغییرِ تنظیمات
+> پیامک اجرا کنید؛ خطای هر endpoint جداگانه گزارش می‌شود تا «موجودی سالم، الگو تایم‌اوت»
+> از هم تفکیک شود.
 
 ## نقش‌ها: دو مقدار، و پنلی که دیگر قفل نمی‌شود ✔
 
