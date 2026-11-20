@@ -74,6 +74,8 @@ class AgentOut(ORMModel):
     name: str
     role: str
     avatar_url: str | None
+    #: the account that created the agent; customers only see their own
+    created_by: uuid.UUID | None = None
     system_prompt_key: str
     model_id: uuid.UUID | None
     model_external_id: str | None = None

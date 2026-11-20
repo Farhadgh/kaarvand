@@ -164,6 +164,7 @@ async def _record(
     db.add(
         UsageLedger(
             org_id=user.org_id,
+            user_id=user.id,
             provider_id=provider.id,
             model_id=model.id,
             tokens_in=0,

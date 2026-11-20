@@ -160,6 +160,58 @@ export type CatalogModel = {
   price_known: boolean;
 };
 
+/** A customer's own assistant (the API hides other people's agents). */
+export type Agent = {
+  id: string;
+  name: string;
+  role: string;
+  created_by: string | null;
+  system_prompt_key: string;
+  model_id: string | null;
+  model_external_id: string | null;
+  model_display_name_fa: string | null;
+  temperature: string | number;
+  max_tokens: number;
+  memory_mode: string;
+  monthly_budget_irr: number | null;
+  is_active: boolean;
+};
+
+export type RunStatus = "queued" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled";
+
+export type RunSummary = {
+  id: string;
+  agent_id: string | null;
+  created_by: string | null;
+  status: RunStatus;
+  trigger: string;
+  steps_taken: number;
+  tokens_in: number;
+  tokens_out: number;
+  /** what the customer paid, in Rial (divide by 10 for Toman) */
+  cost_irr: number;
+  error_code: string | null;
+  created_at: string | null;
+};
+
+export type RunResult = { run: RunSummary; text: string };
+
+/** A messenger/webhook connection bound to one agent. */
+export type Channel = {
+  id: string;
+  slug: string;
+  name_fa: string;
+  provider: "telegram" | "whatsapp";
+  agent_id: string;
+  reply_mode: "off" | "auto";
+  is_active: boolean;
+  events_count: number;
+  last_event_at: string | null;
+  has_secret: boolean;
+  webhook_url: string;
+  last_event_status: string | null;
+};
+
 export const api = {
   requestOtp: (phone: string) =>
     apiFetch<OtpRequest>("/v1/auth/otp/request", {
@@ -198,5 +250,34 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ refresh_token: refreshToken }),
     }),
+
+  agents: () => apiFetch<Agent[]>("/v1/agents"),
+
+  createAgent: (body: { name: string; model_id?: string | null; role?: string }) =>
+    apiFetch<Agent>("/v1/agents", { method: "POST", body: JSON.stringify(body) }),
+
+  updateAgent: (id: string, body: { is_active?: boolean; name?: string }) =>
+    apiFetch<Agent>(`/v1/agents/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+
+  deleteAgent: (id: string) => apiFetch<void>(`/v1/agents/${id}`, { method: "DELETE" }),
+
+  runs: (limit = 50) => apiFetch<RunSummary[]>(`/v1/runs?limit=${limit}`),
+
+  startRun: (agentId: string, input: string) =>
+    apiFetch<RunResult>(`/v1/agents/${agentId}/runs`, {
+      method: "POST",
+      body: JSON.stringify({ input, stream: false }),
+    }),
+
+  channels: () => apiFetch<Channel[]>("/v1/channels"),
+
+  createChannel: (body: {
+    name_fa: string;
+    provider: "telegram" | "whatsapp";
+    agent_id: string;
+    reply_mode?: "off" | "auto";
+  }) => apiFetch<Channel>("/v1/channels", { method: "POST", body: JSON.stringify(body) }),
+
+  deleteChannel: (id: string) => apiFetch<void>(`/v1/channels/${id}`, { method: "DELETE" }),
 };
 

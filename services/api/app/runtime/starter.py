@@ -35,11 +35,13 @@ async def create_run(
     trigger: str = "manual",
     task_id: uuid.UUID | None = None,
     conversation_id: uuid.UUID | None = None,
+    created_by: uuid.UUID | None = None,
 ) -> Run:
     """Persist a queued run (the caller owns the transaction)."""
     run = Run(
         org_id=org_id,
         agent_id=agent_id,
+        created_by=created_by,
         conversation_id=conversation_id,
         task_id=task_id,
         status="queued",
@@ -165,6 +167,7 @@ async def prepare_task_run(
             agent_id=task.agent_id,
             trigger="task",
             task_id=task.id,
+            created_by=owner,
         )
         if gated:
             run.status = "waiting_approval"

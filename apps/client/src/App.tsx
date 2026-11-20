@@ -3,13 +3,13 @@ import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 
 import { loadSession } from "./lib/auth";
 import { desktop, parseDeepLink } from "./lib/desktop";
+import Agents from "./pages/Agents";
+import Connections from "./pages/Connections";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Models from "./pages/Models";
-import Soon from "./pages/Soon";
+import Runs from "./pages/Runs";
 import Wallet from "./pages/Wallet";
-
-const SOON_PATHS = ["/agents", "/connections", "/runs"];
 
 function RequireAuth({ children }: { children: ReactNode }) {
   return loadSession() ? <>{children}</> : <Navigate to="/login" replace />;
@@ -62,15 +62,15 @@ export default function App() {
             </RequireAuth>
           }
         />
-        {SOON_PATHS.map((path) => (
+        {[
+          { path: "/agents", page: <Agents /> },
+          { path: "/connections", page: <Connections /> },
+          { path: "/runs", page: <Runs /> },
+        ].map((item) => (
           <Route
-            key={path}
-            path={path}
-            element={
-              <RequireAuth>
-                <Soon />
-              </RequireAuth>
-            }
+            key={item.path}
+            path={item.path}
+            element={<RequireAuth>{item.page}</RequireAuth>}
           />
         ))}
         <Route path="*" element={<Navigate to="/" replace />} />

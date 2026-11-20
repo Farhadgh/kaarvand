@@ -36,9 +36,11 @@ operator = require_member
 
 
 async def _get_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> Run:
-    run = (
-        await db.execute(select(Run).where(Run.id == run_id, Run.org_id == user.org_id))
-    ).scalar_one_or_none()
+    stmt = select(Run).where(Run.id == run_id, Run.org_id == user.org_id)
+    if user.role != ADMIN_ROLE:
+        # a customer's run list is their own history, never a colleague's
+        stmt = stmt.where(Run.created_by == user.id)
+    run = (await db.execute(stmt)).scalar_one_or_none()
     if run is None:
         raise NotFoundError(code="run.not_found")
     return run
@@ -146,6 +148,7 @@ async def start_run(
     run = Run(
         org_id=org_id,
         agent_id=agent.id,
+        created_by=user_id,
         conversation_id=payload.conversation_id,
         task_id=payload.task_id,
         status="queued",
@@ -242,13 +245,17 @@ async def list_runs(
     user: User = Depends(get_current_user),
 ) -> list[RunOut]:
     stmt = select(Run).where(Run.org_id == user.org_id)
+    if user.role != ADMIN_ROLE:
+        stmt = stmt.where(Run.created_by == user.id)
     if agent_id:
         stmt = stmt.where(Run.agent_id == agent_id)
     if status_filter:
         stmt = stmt.where(Run.status == status_filter)
     rows = (
-        await db.execute(stmt.order_by(Run.created_at.desc()).limit(limit).offset(offset))
-    ).scalars().all()
+        (await db.execute(stmt.order_by(Run.created_at.desc()).limit(limit).offset(offset)))
+        .scalars()
+        .all()
+    )
     return [run_out(row, user) for row in rows]
 
 
@@ -283,10 +290,14 @@ async def run_invocations(
 ) -> list[ToolInvocationOut]:
     run = await _get_run(db, user, run_id)
     rows = (
-        await db.execute(
-            select(ToolInvocation)
-            .where(ToolInvocation.run_id == run.id)
-            .order_by(ToolInvocation.created_at)
+        (
+            await db.execute(
+                select(ToolInvocation)
+                .where(ToolInvocation.run_id == run.id)
+                .order_by(ToolInvocation.created_at)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return [ToolInvocationOut.model_validate(row) for row in rows]

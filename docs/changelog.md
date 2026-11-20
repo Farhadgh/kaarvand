@@ -1,6 +1,49 @@
 # تغییرات (Changelog)
 
 هر قدم با «شاهد» ثبت شده است؛ یعنی چیزی که واقعاً اجرا شده، نه ادعا.
+## فاز ۴ — ایجنت، اتصال و گفتگو در اپ مشتری؛ هزینه به نام صاحبش ✔
+
+**مسئله (دو لایه):** سه صفحهٔ کلاینت (`/agents`، `/connections`، `/runs`) فقط «به‌زودی» بودند؛
+و در بک‌اند بدتر: `runs` و `usage_ledger` تنها `org_id` داشتند. چون کل پلتفرم یک تنانت است،
+هر مشتری اجراهای مشتریان دیگر را می‌دید و «این مشتری چقدر خرج کرد؟» از داده قابل پاسخ نبود.
+
+**نتیجه:** مالکیت به خود ردیف اضافه شد و هر سه صفحه واقعی شدند. قاعده یک خط است:
+`owns_or_admin(user, row.created_by)` — مشتری فقط ردیف‌های خودش را می‌بیند، ادمین همه را،
+و ردیف غریبه **۴۰۴** می‌دهد (نه ۴۰۳، تا وجودش هم لو نرود).
+
+| فایل | تغییر |
+|---|---|
+| `alembic/versions/0017_user_attribution.py` (جدید) | `runs.created_by` + `usage_ledger.user_id` با ایندکس؛ backfill از `agents.created_by` و سپس از `runs`، **با برداشتن موقت RLS** (همان تلهٔ ۰۰۱۴/۰۰۱۶) |
+| `db/models/runs.py` · `usage.py` | دو ستون + ایندکس‌های `ix_runs_created_by_time` و `ix_usage_ledger_user_time` |
+| `agents/service.py` · `api/v1/agents.py` | `get_agent` مالکیت را چک می‌کند؛ `GET /v1/agents` برای مشتری فیلتر می‌شود |
+| `api/v1/runs.py` | `start_run` مقدار `created_by` را می‌نویسد؛ `_get_run` و `GET /v1/runs` برای مشتری محدود شدند |
+| `runtime/starter.py` · `runtime/inbound.py` | اجرای وظیفه با `created_by=owner` و اجرای وبهوک با `created_by=channel.created_by` |
+| `runtime/engine.py` · `audio/service.py` | ردیف دفتر مصرف با `user_id` ثبت می‌شود (کیف پول پرداخت‌کننده) |
+| `apps/client/src/pages/Agents.tsx` | ساخت ایجنت (نام + مدل از کاتالوگ تومانی)، فعال/غیرفعال، حذف، دکمهٔ «گفتگو» |
+| `apps/client/src/pages/Runs.tsx` | انتخاب ایجنت، ارسال پیام، نمایش پاسخ و **هزینه به تومان**، تاریخچهٔ اجراها |
+| `apps/client/src/pages/Connections.tsx` | ساخت اتصال تلگرام/واتس‌اپ برای یک ایجنت + آدرس وبهوک با دکمهٔ کپی + حذف |
+| `apps/client/src/lib/api.ts` · `errors-fa.ts` | تایپ و متدهای `agents/runs/channels` + پیام فارسی کدهای خطای تازه |
+
+**شاهد:**
+
+```
+pytest tests/test_ownership.py                       → 2 passed
+  مشتری دوم: GET /v1/agents → []   ·  GET /v1/agents/{id} → 404
+             PATCH/DELETE/رأی‌گیری اجرا روی ایجنت غریبه → 404
+             GET /v1/runs → []     ·  GET /v1/runs/{id} → 404
+  ادمین:     GET /v1/agents و /v1/runs → ۲۰۰ و شامل ردیف مشتری
+  ردیف دفتر مصرف: user_id = صاحب اجرا، cost_irr = هزینهٔ اجرا، cost_usd > 0
+  اجرای مشتری: run.created_by = خودش، cost_usd = null (قیمت دلاری لو نمی‌رود)
+pytest -q (کل مجموعه)                                → ۳۱۱ passed
+npx tsc --noEmit (کلاینت)                            → بدون خطا
+```
+
+> **دو تست قدیمی عوض شدند، نه ضعیف:** `test_customer_can_install_app` و
+> `test_customer_can_create_channel` ایجنت را با ادمین می‌ساختند و بعد با مشتری استفاده
+> می‌کردند؛ حالا ایجنت را خود مشتری می‌سازد **و** اضافه شده که همان درخواست با ایجنت ادمین
+> باید ۴۰۴ بدهد.
+
+
 
 ## پیامک OTP با ایران‌پیامک (FarazSMS v2): ثبت‌نام و ورود مشتری ✔
 

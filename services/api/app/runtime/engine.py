@@ -1,4 +1,4 @@
-﻿"""Agent execution engine.
+"""Agent execution engine.
 
 A DB-persisted tool-calling loop (no hidden framework state):
 
@@ -145,9 +145,7 @@ class RunEngine:
 
         raw_conversation = self._state.get("conversation_id") or self.conversation_id
         if raw_conversation:
-            self._conversation = await self.db.get(
-                Conversation, uuid.UUID(str(raw_conversation))
-            )
+            self._conversation = await self.db.get(Conversation, uuid.UUID(str(raw_conversation)))
 
     async def _initialise(self) -> None:
         await self._load_context()
@@ -497,6 +495,7 @@ class RunEngine:
         self.db.add(
             UsageLedger(
                 org_id=self.org_id,
+                user_id=self.user_id,
                 agent_id=self.agent_id,
                 provider_id=model.provider_id,
                 model_id=model.id,

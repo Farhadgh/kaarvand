@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.service import effective_prompt, get_agent, validate_model
 from app.agents.workflow import validate_graph
 from app.core.config import Settings, get_settings
-from app.core.deps import get_current_user, get_db, require_member
+from app.core.deps import ADMIN_ROLE, get_current_user, get_db, require_member
 from app.core.errors import AppError, NotFoundError
 from app.db.models import Agent, AgentTask, AgentTool, AgentWorkflow, Model, Tool, User
 from app.prompts.service import resolve_prompt
@@ -72,6 +72,9 @@ async def list_agents(
     user: User = Depends(get_current_user),
 ) -> list[AgentOut]:
     stmt = select(Agent).where(Agent.org_id == user.org_id)
+    if user.role != ADMIN_ROLE:
+        # a customer sees the agents they created; platform agents stay internal
+        stmt = stmt.where(Agent.created_by == user.id)
     if is_active is not None:
         stmt = stmt.where(Agent.is_active.is_(is_active))
     if q:
@@ -239,9 +242,7 @@ async def run_task_now(
     task = await _get_task(db, agent, task_id)
     await db.commit()
 
-    plan = await prepare_task_run(
-        task.id, settings=settings, mark_last_run=True, user_id=user.id
-    )
+    plan = await prepare_task_run(task.id, settings=settings, mark_last_run=True, user_id=user.id)
     if plan is None:
         raise AppError(
             code="task.not_runnable",

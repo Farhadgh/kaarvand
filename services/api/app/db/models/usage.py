@@ -56,10 +56,17 @@ class UsageLedger(UUIDPrimaryKey, Base):
     """Append only cost accounting. billable=False while free_mode is on."""
 
     __tablename__ = "usage_ledger"
-    __table_args__ = (Index("ix_usage_ledger_org_time", "org_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_usage_ledger_org_time", "org_id", "created_at"),
+        Index("ix_usage_ledger_user_time", "user_id", "created_at"),
+    )
 
     org_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    #: whose wallet paid for the call (null for platform/scheduled work)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     agent_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("agents.id", ondelete="SET NULL"), nullable=True

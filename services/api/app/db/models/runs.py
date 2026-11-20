@@ -30,6 +30,7 @@ class Run(UUIDPrimaryKey, TimestampMixin, Base):
     __table_args__ = (
         Index("ix_runs_org_time", "org_id", "created_at"),
         Index("ix_runs_agent_status", "agent_id", "status"),
+        Index("ix_runs_created_by_time", "created_by", "created_at"),
     )
 
     org_id: Mapped[uuid.UUID] = mapped_column(
@@ -37,6 +38,10 @@ class Run(UUIDPrimaryKey, TimestampMixin, Base):
     )
     agent_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("agents.id", ondelete="SET NULL"), nullable=True
+    )
+    #: who started the run — the customer's own view filters on this
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     task_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("agent_tasks.id", ondelete="SET NULL"), nullable=True

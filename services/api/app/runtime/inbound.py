@@ -204,7 +204,13 @@ async def accept_message(
             event.error = "org has no active user"
             return "failed", None
 
-        run = await create_run(db, org_id=org_id, agent_id=channel.agent_id, trigger="webhook")
+        run = await create_run(
+            db,
+            org_id=org_id,
+            agent_id=channel.agent_id,
+            trigger="webhook",
+            created_by=channel.created_by,
+        )
         event.run_id = run.id
         channel_row = await db.get(InboundChannel, channel.id)
         if channel_row is not None:
@@ -322,4 +328,3 @@ async def execute_plan(plan: InboundPlan, *, settings: Settings | None = None) -
     """Thin wrapper: the webhook path only cares about the reply status."""
     outcome = await execute_plan_full(plan, settings=settings)
     return outcome.reply_status
-

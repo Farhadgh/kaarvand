@@ -26,6 +26,8 @@ class RunApproveIn(BaseModel):
 class RunOut(ORMModel):
     id: uuid.UUID
     agent_id: uuid.UUID | None
+    #: who started it; customers only ever see their own rows
+    created_by: uuid.UUID | None = None
     conversation_id: uuid.UUID | None
     task_id: uuid.UUID | None
     status: str

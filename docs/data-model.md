@@ -70,10 +70,10 @@
 | جدول | نکته |
 |---|---|
 | `conversations` / `messages` | تاریخچه‌ی گفتگو؛ `messages.cost_irr` برای نمایش هزینه‌ی هر پیام |
-| `runs` | status(queued/running/waiting_approval/completed/failed/cancelled)، steps_taken، tokens، cost_usd/cost_irr/**fx_rate**، **state(JSONB)** برای ادامه‌ی اجرا |
+| `runs` | status(queued/running/waiting_approval/completed/failed/cancelled)، steps_taken، tokens، cost_usd/cost_irr/**fx_rate**، **state(JSONB)** برای ادامه‌ی اجرا، **`created_by`** (صاحب اجرا؛ مشتری فقط اجراهای خودش را می‌بیند) |
 | `trace_spans` | گام‌های ریز برای دیباگ |
 | `tool_invocations` | args/result/status/risk/latency/**approved_by** — حتی برای خطاها (تراکنش جدا) |
-| `usage_ledger` | append-only: tokens، cost_usd، markup، **fx_rate**، cost_irr، billable، `audio_seconds` (STT) و `audio_chars` (TTS) |
+| `usage_ledger` | append-only: tokens، cost_usd، markup، **fx_rate**، cost_irr، billable، `audio_seconds` (STT) و `audio_chars` (TTS)، **`user_id`** (کیف پول پرداخت‌کننده) |
 | `audit_logs` | زنجیره‌ی هش (`prev_hash`, `hash`) |
 
 **چرا `fx_rate` در هر ردیف مصرف؟** فاکتور ماه بعد نباید با تغییر نرخ ارز به‌هم بریزد.

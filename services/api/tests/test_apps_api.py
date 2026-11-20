@@ -334,13 +334,24 @@ async def test_clone_makes_global_tool_editable(
 async def test_customer_can_install_app(
     client: Any, auth_headers: dict[str, str], viewer_headers: dict[str, str]
 ) -> None:
-    agent_id = await _agent(client, auth_headers)
+    # the agent has to be the customer's own — someone else's agent is invisible
+    agent_id = await _agent(client, viewer_headers)
     response = await client.post(
         "/v1/apps/telegram/install",
         headers=viewer_headers,
         json={"agent_id": agent_id, "secret": "tok", "variables": {"chat_id": "-1"}},
     )
     assert response.status_code in (200, 201), response.text
+
+    # a platform agent (owned by the admin) cannot be touched by a customer
+    foreign = await _agent(client, auth_headers)
+    denied = await client.post(
+        "/v1/apps/telegram/install",
+        headers=viewer_headers,
+        json={"agent_id": foreign, "secret": "tok", "variables": {"chat_id": "-1"}},
+    )
+    assert denied.status_code == 404
+    assert denied.json()["error"]["code"] == "agent.not_found"
 
 
 def test_tool_slug_is_stable_per_agent() -> None:

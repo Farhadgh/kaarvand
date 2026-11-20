@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.deps import owns_or_admin
 from app.core.errors import AppError
 from app.db.models import Agent, Model, Organization, Provider, User
 from app.prompts.render import base_values, render
@@ -40,7 +41,8 @@ async def get_agent(db: AsyncSession, user: User, agent_id: uuid.UUID) -> Agent:
     agent = (
         await db.execute(select(Agent).where(Agent.id == agent_id, Agent.org_id == user.org_id))
     ).scalar_one_or_none()
-    if agent is None:
+    # someone else's agent is indistinguishable from a missing one: 404, never 403
+    if agent is None or not owns_or_admin(user, agent.created_by):
         raise AppError(code="agent.not_found", status_code=404)
     return agent
 

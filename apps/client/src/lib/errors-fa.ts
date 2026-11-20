@@ -25,6 +25,15 @@ const MESSAGES: Record<string, string> = {
   "payment.amount_mismatch": "مبلغ پرداخت با سفارش هم‌خوانی ندارد؛ با پشتیبانی تماس بگیرید.",
   "common.validation_error": "اطلاعات واردشده کامل یا درست نیست.",
   "common.network": "ارتباط با سرور برقرار نشد. اینترنت خود را بررسی کنید.",
+  "agent.not_found": "این ایجنت پیدا نشد یا حذف شده است.",
+  "run.not_found": "این اجرا پیدا نشد.",
+  "model.not_found": "مدل انتخاب‌شده در دسترس نیست.",
+  "model.disabled": "این مدل موقتاً غیرفعال شده است.",
+  "budget.agent_exceeded": "سقف بودجهٔ ماهانهٔ این ایجنت پر شده است.",
+  "budget.org_exceeded": "سقف بودجهٔ ماهانه پر شده است؛ با پشتیبانی تماس بگیرید.",
+  "budget.token_limit": "طول درخواست از حد مجاز بیشتر است.",
+  "inbound.channel_not_found": "این اتصال پیدا نشد.",
+  "inbound.reply_tool_required": "برای پاسخ خودکار، ابتدا ابزار پیام‌رسان را در پنل تنظیم کنید.",
 };
 
 export function faError(code: string | undefined, fallback = "خطای نامشخص رخ داد."): string {

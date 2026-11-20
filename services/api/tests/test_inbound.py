@@ -254,7 +254,8 @@ async def test_custom_reply_tool_without_app_slug_is_accepted(
 async def test_customer_can_create_channel(
     client: Any, auth_headers: dict[str, str], viewer_headers: dict[str, str]
 ) -> None:
-    agent = await make_agent(client, auth_headers)
+    # a channel answers with the customer's own agent
+    agent = await make_agent(client, viewer_headers)
     response = await client.post(
         "/v1/channels",
         headers=viewer_headers,
@@ -266,6 +267,21 @@ async def test_customer_can_create_channel(
         },
     )
     assert response.status_code == 201, response.text
+
+    # ... and never with somebody else's
+    foreign = await make_agent(client, auth_headers)
+    denied = await client.post(
+        "/v1/channels",
+        headers=viewer_headers,
+        json={
+            "name_fa": "کانال دیگری",
+            "provider": "telegram",
+            "agent_id": foreign["id"],
+            "verify_secret": "x",
+        },
+    )
+    assert denied.status_code == 404
+    assert denied.json()["error"]["code"] == "agent.not_found"
 
 
 # -------------------------------------------------------------------- webhooks

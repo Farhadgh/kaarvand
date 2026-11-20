@@ -70,7 +70,7 @@ export default function Home() {
       </section>
 
       <p className="pt-2 text-center text-xs text-slate-400">
-        نسخهٔ {faDigits("0.1.0")} — این بخش‌ها در گام‌های بعدی فعال می‌شوند.
+        نسخهٔ {faDigits("0.1.0")} — هر گفتگو با ایجنت‌های شما از کیف پول تومانی کم می‌شود.
       </p>
     </div>
   );
