@@ -1,3 +1,0 @@
-c732592 feat(links): connect the customer's own social accounts through a browser bridge
-To https://github.com/Farhadgh/kaarvand.git
-   6d7c3b2..c732592  main -> main
