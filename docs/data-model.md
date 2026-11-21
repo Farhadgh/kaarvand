@@ -1,6 +1,6 @@
 # مدل داده
 
-۴۳ جدول در ۱۷ مایگریشن (`0000` تا `0016`). ستون‌های مشترک همه‌ی جدول‌های دامنه:
+۴۷ جدول در ۱۹ مایگریشن (`0000` تا `0018`). ستون‌های مشترک همه‌ی جدول‌های دامنه:
 `id UUID` (پیش‌فرض `uuid4`)، `created_at`, `updated_at` (به‌جز جدول‌های append-only).
 
 > **قاعدهٔ مهاجرت داده:** جدول‌های زیر RLS با `FORCE ROW LEVEL SECURITY` محافظت می‌شوند،
@@ -109,10 +109,11 @@
 
 ## ۹) امنیت سطح ردیف (RLS)
 
-۱۷ جدول با سیاست `tenant_isolation` و `FORCE ROW LEVEL SECURITY`:
+۲۳ جدول با سیاست `tenant_isolation` و `FORCE ROW LEVEL SECURITY`:
 
 ```
-agents, api_keys, audit_logs, conversations, devices, knowledge_bases, mcp_servers,
+account_links, agents, api_keys, audit_logs, conversations, devices, inbound_channels,
+inbound_events, knowledge_bases, link_assets, link_logins, link_messages, mcp_servers,
 memberships, prompts, providers, runs, sessions, tool_invocations, tools,
 usage_ledger, users, wallets
 ```
@@ -138,3 +139,23 @@ OR org_id = NULLIF(current_setting('app.org_id', true), '')::uuid
 | `messages` | ۱۸۰ روز | آرشیو به فایل |
 | `usage_ledger`, `audit_logs` | دائمی | append-only، بدون UPDATE |
 | `login_attempts` | ۳۰ روز | — |
+
+## ۱۱) حساب‌های کاربر (فاز ۵)
+
+| جدول | ستون‌های کلیدی | نکته |
+|---|---|---|
+| `account_links` | org_id, **user_id**, provider, auth_kind, transport, status, display_name, external_account_id, session_enc, access_token_enc, refresh_token_enc, expires_at, device_id, mcp_server_id, rate_limit_per_hour, last_error, last_seen_at | یک ردیف برای هر (کاربر، برنامه، حساب). `auth_kind`: `browser`/`session`/`oauth`. یکتا: `(user_id, provider, external_account_id)` |
+| `link_assets` | link_id, kind, external_id, name, meta, is_enabled | «کدام صفحه/گفت‌وگو/شیت؟» — فعلاً یک ردیف `site` برای هر لینک |
+| `link_logins` | link_id, state, challenge_enc, qr_payload, expires_at, attempts, error | ماشین‌حالت ورود برای فاز `session` (تلگرام MTProto) |
+| `link_messages` | link_id, external_id, chat_id, from_id, text, status, run_id | پیام‌های مشاهده‌شده وقتی ایجنت «می‌شنود»، نه فقط می‌فرستد |
+
+- **RLS:** هر چهار جدول با `tenant_isolation` + `FORCE` (زیرجدول‌ها `org_id` خودشان را
+  دارند تا سیاست یک مقایسهٔ ستونی ساده بماند، مثل `inbound_events`).
+- **مالکیت:** `account_links.user_id` مرز واقعی است؛ `org_id` تنها کافی نیست.
+- **`devices.owner_user_id` و `mcp_servers.owner_user_id` (تازه):** بدون آن‌ها لینک یک
+  مشتری می‌توانست روی لپ‌تاپ مشتری دیگر اجرا شود و یک مشتری می‌توانست سرور MCP دیگری را
+  به ایجنتش ببندد. `NULL` یعنی «در سطح تنانت/مدیریت پلتفرم».
+- **رمزنگاری:** `session_enc`/`access_token_enc`/`refresh_token_enc` با AES‑256‑GCM و
+  AAD = `link:{id}`؛ کپی ردیف در لینک دیگر قابل رمزگشایی نیست. برای `auth_kind=browser`
+  این ستون‌ها خالی می‌مانند (نشست روی دستگاه است).
+

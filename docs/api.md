@@ -557,7 +557,49 @@ Invoke-WebRequest "http://127.0.0.1:8000/v1/audio/speech" -Method Post -Headers 
 `audio.unsupported_provider` · `audio.empty_file` · `audio.file_too_large` ·
 `audio.empty_text` · `audio.text_too_long` · `model.exists` · ۵۰۲ برای خطای پروایدر.
 
-## ۱۶) شروع سریع با PowerShell
+## ۱۶) حساب‌های من (Account links)
+
+مشتری حساب شخصی خودش (فیسبوک، تلگرام وب، واتساپ وب) را یک‌بار وصل می‌کند و ایجنت‌ها
+به‌جای او کار می‌کنند. رمز/کوکی هرگز به سرور نمی‌رسد: نشست در پروفایل مرورگرِ اپ
+دسکتاپ می‌ماند و سرور فقط دستور می‌فرستد.
+
+| متد | مسیر | نقش | کار |
+|---|---|---|---|
+| GET | `/v1/links/providers` | هر دو | کارت‌های «حساب‌ها» + فهرست کارهایی که ایجنت مجاز است (`tools[].title_fa`) |
+| GET | `/v1/links` | هر دو | حساب‌های متصلِ خودِ کاربر (`status`, `device_online`, `tool_slugs`) |
+| POST | `/v1/links` | هر دو | `{provider}` → ردیف `pending` + باز شدن پنجرهٔ ورود روی دستگاه |
+| GET | `/v1/links/{id}` | هر دو | یک حساب |
+| POST | `/v1/links/{id}/open` | هر دو | باز کردن دوبارهٔ پنجرهٔ ورود |
+| POST | `/v1/links/{id}/probe` | هر دو | «وارد شده‌ام» را بررسی می‌کند؛ اگر موفق بود ابزارها ساخته می‌شوند |
+| POST | `/v1/links/{id}/sync` | هر دو | ساخت/به‌روزرسانی ابزارها از Recipe (idempotent) |
+| POST | `/v1/links/{id}/stop` | هر دو | توقف فوری؛ `status=paused` |
+| GET | `/v1/links/{id}/assets` | هر دو | دارایی‌های کشف‌شده (فعلاً `site`) |
+| DELETE | `/v1/links/{id}` | هر دو | قطع + پاک‌کردن پروفایل روی دستگاه + حذف ابزارها |
+
+```json
+POST /v1/links {"provider": "facebook"}
+→ 201 {"id":"…","provider":"facebook","auth_kind":"browser","status":"pending",
+       "login_opened":true,"device_online":true,"provider_title_fa":"فیسبوک","tool_slugs":[]}
+
+POST /v1/links/{id}/probe
+→ 200 {"ok":true,"logged_in":true,"status":"active","display_name":"علی رضایی",
+       "tools":["facebook.1a2b3c4d.post","facebook.1a2b3c4d.notifications"],
+       "hint_fa":null,"screenshot":"<png base64>","detail":null}
+```
+
+**خطاهای اختصاصی:** `link.not_found` (۴۰۴ برای حساب دیگران) · `link.already_exists` (۴۰۹)
+· `link.unknown_provider` / `link.provider_soon` (۴۲۲) · `link.device_offline` (۴۰۹ — اپ
+کاروند روی لپ‌تاپ باز نیست) · `link.device_error` (۵۰۲) · `link.not_active` (۴۰۹).
+
+**ابزارهای ساخته‌شده** ردیف‌های معمولی `tools` با `kind="connector"` و
+`slug=<provider>.<link8>.<tool>` هستند؛ پس تأیید انسانی، سقف نرخ، حسابرسی و هزینه مثل
+بقیهٔ ابزارها کار می‌کنند. مالکیت: `created_by = صاحب حساب`؛ مشتری دیگر آن‌ها را در
+`GET /v1/tools` نمی‌بیند و با `PUT /v1/agents/{id}/tools` نمی‌تواند به ایجنت خودش ببندد.
+
+> جزئیات پروتکل دستگاه و فرمت Recipe: [bridge.md](bridge.md).
+
+
+## ۱۷) شروع سریع با PowerShell
 
 ```powershell
 $api = "http://127.0.0.1:8010"

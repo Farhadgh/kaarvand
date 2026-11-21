@@ -34,6 +34,16 @@ const MESSAGES: Record<string, string> = {
   "budget.token_limit": "طول درخواست از حد مجاز بیشتر است.",
   "inbound.channel_not_found": "این اتصال پیدا نشد.",
   "inbound.reply_tool_required": "برای پاسخ خودکار، ابتدا ابزار پیام‌رسان را در پنل تنظیم کنید.",
+  "link.not_found": "این حساب پیدا نشد یا حذف شده است.",
+  "link.already_exists": "این حساب قبلاً وصل شده است؛ همان کارت را ببینید.",
+  "link.unknown_provider": "این برنامه در فهرست پشتیبانی نیست.",
+  "link.provider_soon": "این برنامه به‌زودی اضافه می‌شود.",
+  "link.device_offline":
+    "دستگاهی که این حساب روی آن ذخیره می‌شود آنلاین نیست. اپ کاروند را روی لپ‌تاپ خود باز کنید.",
+  "link.device_error": "اجرای عملیات در مرورگر دستگاه انجام نشد؛ یک‌بار دیگر تلاش کنید.",
+  "link.not_active": "این حساب هنوز فعال نیست؛ ابتدا «بررسی اتصال» را بزنید.",
+  "link.login_required": "در پنجرهٔ بازشده وارد حساب خودتان شوید، سپس «بررسی اتصال» را بزنید.",
+  "tool.rate_limited": "سقف مجاز این ابزار در یک ساعت گذشته پر شده است؛ کمی بعد دوباره تلاش کنید.",
 };
 
 export function faError(code: string | undefined, fallback = "خطای نامشخص رخ داد."): string {

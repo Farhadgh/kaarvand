@@ -6,7 +6,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connector.hub import hub
@@ -17,7 +17,7 @@ from app.connector.pairing import (
     new_pairing_code,
     pairing_expiry,
 )
-from app.core.deps import get_current_user, get_db, require_member
+from app.core.deps import ADMIN_ROLE, get_current_user, get_db, owns_or_admin, require_member
 from app.core.errors import AppError, NotFoundError
 from app.db.models import Device, User
 from app.db.session import session_scope
@@ -41,7 +41,10 @@ async def _get_device(db: AsyncSession, user: User, device_id: uuid.UUID) -> Dev
             select(Device).where(Device.id == device_id, Device.org_id == user.org_id)
         )
     ).scalar_one_or_none()
-    if device is None:
+    # an unowned device is tenant wide (paired before 0018); otherwise only its owner
+    if device is None or not (
+        device.owner_user_id is None or owns_or_admin(user, device.owner_user_id)
+    ):
         raise NotFoundError(code="device.not_found")
     return device
 
@@ -66,6 +69,7 @@ async def create_device(
         pairing_code=new_pairing_code(),
         pairing_expires_at=pairing_expiry(),
         allowed_paths=[],
+        owner_user_id=user.id,
     )
     db.add(device)
     await db.flush()
@@ -113,11 +117,11 @@ async def list_devices(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[DeviceOut]:
-    rows = (
-        await db.execute(
-            select(Device).where(Device.org_id == user.org_id).order_by(Device.created_at)
-        )
-    ).scalars().all()
+    stmt = select(Device).where(Device.org_id == user.org_id)
+    if user.role != ADMIN_ROLE:
+        # a laptop paired by another customer is not ours to list or drive
+        stmt = stmt.where(or_(Device.owner_user_id.is_(None), Device.owner_user_id == user.id))
+    rows = (await db.execute(stmt.order_by(Device.created_at))).scalars().all()
     return [DeviceOut.model_validate(row) for row in rows]
 
 

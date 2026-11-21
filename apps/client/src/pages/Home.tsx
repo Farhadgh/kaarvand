@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { api } from "../lib/api";
 import { clearSession, loadSession } from "../lib/auth";
+import { stopSharedConnector } from "../lib/device";
 import { faDigits, formatToman } from "../lib/money";
 
 /** First screen after login: wallet balance plus the roadmap of the app. */
@@ -14,6 +15,7 @@ export default function Home() {
   function logout() {
     const refresh = loadSession()?.refreshToken;
     if (refresh) void api.logout(refresh).catch(() => undefined);
+    stopSharedConnector();
     clearSession();
     navigate("/login", { replace: true });
   }
@@ -58,6 +60,10 @@ export default function Home() {
         <button className="card text-right" onClick={() => navigate("/agents")}>
           <p className="text-sm font-semibold">ایجنت‌ها</p>
           <p className="mt-1 text-xs text-slate-500">ساخت و مدیریت دستیارهای هوشمند</p>
+        </button>
+        <button className="card text-right" onClick={() => navigate("/accounts")}>
+          <p className="text-sm font-semibold">حساب‌های من</p>
+          <p className="mt-1 text-xs text-slate-500">فیسبوک، تلگرام و واتساپ با حساب خودتان</p>
         </button>
         <button className="card text-right" onClick={() => navigate("/connections")}>
           <p className="text-sm font-semibold">اتصال‌ها</p>

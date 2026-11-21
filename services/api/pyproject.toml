@@ -58,6 +58,12 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
 # ASYNC109: our `timeout` arguments are httpx timeouts, not asyncio ones
 ignore = ["B008", "ASYNC109"]
 
+[tool.ruff.lint.isort]
+# `alembic/` is a migrations *folder* next to the package, so ruff would treat the
+# `alembic` import in alembic/env.py as first-party and ask for a re-sort that
+# contradicts every other module. It is a third-party package.
+known-third-party = ["alembic"]
+
 [tool.ruff.lint.per-file-ignores]
 # seed data is long Persian literals (setup instructions, prompts); wrapping them
 # would make the data harder to read and diff than the line-count win is worth.

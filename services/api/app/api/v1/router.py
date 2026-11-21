@@ -14,6 +14,7 @@ from app.api.v1 import (
     connector_ws,
     devices,
     inbound,
+    links,
     meta,
     models,
     otp,
@@ -45,6 +46,7 @@ api_router.include_router(agents.router)
 api_router.include_router(tools.router)
 api_router.include_router(apps.router)
 api_router.include_router(inbound.router)
+api_router.include_router(links.router)
 api_router.include_router(audio.router)
 api_router.include_router(runs.router)
 api_router.include_router(devices.router)

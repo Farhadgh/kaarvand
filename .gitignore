@@ -25,6 +25,7 @@ build/
 
 # logs & temp
 *.log
+*.exit
 .pgcheck.*
 .*.out
 .*.err

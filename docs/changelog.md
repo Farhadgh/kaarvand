@@ -1,6 +1,64 @@
 # تغییرات (Changelog)
 
 هر قدم با «شاهد» ثبت شده است؛ یعنی چیزی که واقعاً اجرا شده، نه ادعا.
+## فاز ۵ (الف) — «حساب‌های من»: اتصال یک‌باره به حساب شخصی مشتری ✔
+
+**مسئله:** مشتری می‌خواست ایجنت «به‌جای خودش» در فیسبوک و تلگرام کار کند. API رسمی
+متا پروفایل شخصی را بسته است، OAuth نیاز به بازبینی اپ دارد و تلگرام بات ≠ خودِ کاربر.
+همچنین کاتالوگ فعلی برای فیسبوک **Page Access Token** از مشتری می‌خواست — همان چیزی که
+نباید اتفاق بیفتد.
+
+**راه‌حل:** یک لایهٔ عمومی «اتصال حساب» با سه نوع احراز (`browser` / `session` / `oauth`)
+و یک تجربهٔ واحد: یک‌بار لاگین در پنجرهٔ خودِ سایت، بعد ایجنت از همان نشست استفاده می‌کند.
+رمز و کوکی هرگز به سرور نمی‌رسد.
+
+| فایل | تغییر |
+|---|---|
+| `alembic/versions/0018_user_links.py` (جدید) | `account_links` + `link_assets` + `link_logins` + `link_messages` با RLS؛ `devices.owner_user_id` و `mcp_servers.owner_user_id` |
+| `db/models/links.py` (جدید) | چهار مدل + ثابت‌های `AUTH_KINDS`/`LINK_STATUSES`/`ASSET_KINDS` |
+| `links/providers.py` (جدید) | رجیستری داده‌ای: فیسبوک (پست/اعلان‌ها)، تلگرام وب (ارسال/خواندن)، واتساپ وب (ارسال)، اینستاگرام (به‌زودی) + Recipe هر ابزار |
+| `links/service.py` (جدید) | مالکیت، انتخاب دستگاه، `link.command`، ساخت خودکار ابزار از Recipe، probe/stop/disconnect |
+| `api/v1/links.py` (جدید) | ۱۰ مسیر `/v1/links…` + `GET /v1/links/providers` |
+| `tools/actions.py` | opهای تازه: `browser.goto`، `browser.wait_for`، `browser.type`، `browser.press`، `browser.wait` |
+| `api/v1/connector_ws.py` | پاسخ `link.result` هم resolve می‌شود |
+| `api/v1/tools.py` · `agents.py` · `devices.py` | **سخت‌سازی مالکیت:** ابزار/MCP/دستگاه غریبه ۴۰۴؛ بستن ابزار دیگری به ایجنت ۴۲۲ |
+| `apps/client/electron/bridge.cjs` (جدید) | پروفایل پایدار هر سایت + اجرای Recipe روی CDP (`executeJavaScript`)، probe/wipe/stop، صف و تایم‌اوت |
+| `apps/client/electron/main.cjs` · `preload.cjs` | IPC پل + ذخیرهٔ توکن دستگاه در `userData/device.json` |
+| `apps/client/src/lib/device.ts` (جدید) | جفت‌سازی خودکار دستگاه + WebSocket کانکتور با backoff + اجرای `link.command`/`script.run` |
+| `apps/client/src/components/DeviceBridge.tsx` (جدید) | اتصال دستگاه پس از ورود (داخل `RequireAuth`) |
+| `apps/client/src/pages/Accounts.tsx` (جدید) | صفحهٔ «حساب‌های من»: کارت هر برنامه، اتصال، بررسی، توقف، قطع و پاک‌کردن، نمایش اسکرین‌شات |
+| `apps/client/src/lib/api.ts` · `errors-fa.ts` · `App.tsx` · `pages/Home.tsx` | تایپ/متدهای links و devices، پیام‌های فارسی خطا، مسیر `/accounts`، کاشی صفحهٔ اصلی |
+
+**شاهد:**
+
+```
+pytest tests/test_links_api.py                       → ۸ passed
+  POST /v1/links بدون دستگاه                          → ۲۰۱ pending، login_opened=false
+  POST /v1/links دوباره                                → ۴۰۹ link.already_exists
+  probe با پل قلابی (logged_in=true)                   → active + ۲ ابزار connector
+  مشتری دوم: GET /v1/links → []  ·  probe/open/sync/stop/DELETE → ۴۰۴
+             GET /v1/tools/{id} → ۴۰۴  ·  PUT /v1/agents/{id}/tools → ۴۲۲ tool.not_found
+  دستگاه ادمین برای مشتری                              → ۴۰۹ link.device_offline (و در لیست نیست)
+  DELETE لینک                                          → ۲۰۴ + فرمان wipe + ابزارها پاک
+pytest -q (کل مجموعه)                                 → ۳۱۹ passed
+python -m ruff check app tests                        → All checks passed
+npx tsc --noEmit (کلاینت)                             → بدون خطا (exit 0)
+```
+
+**تصمیم‌های مهم:**
+
+- **پل داخل اپ Electron، حالت روی‌تقاضا** (انتخاب کاربر): ساده‌ترین و امن‌ترین؛ در عوض
+  اپ باید باز باشد و خطا `link.device_offline` با پیام فارسی روشن است.
+- **Recipe = داده:** ابزار تازه یا سایت تازه یعنی یک ورودی در `providers.py`، بدون تغییر
+  موتور اجرا؛ ابزارها همان `kind="connector"` موجود هستند.
+- **پروفایل اختصاصی هر سایت** (`persist:kv-<provider>`): ایجنت فقط همان سایت را می‌بیند،
+  نه بقیهٔ لاگین‌های مرورگر مشتری.
+
+**باقی‌مانده (فازهای بعد):** recipeهای واقعی فیسبوک/تلگرام وب روی حساب واقعی،
+health-check روزانهٔ recipeها، مسیر OAuth برای لینکدین/گوگل/صفحهٔ فیسبوک، تلگرام MTProto،
+و سرویس پس‌زمینه برای «همیشه در دسترس».
+
+
 ## فاز ۴ — ایجنت، اتصال و گفتگو در اپ مشتری؛ هزینه به نام صاحبش ✔
 
 **مسئله (دو لایه):** سه صفحهٔ کلاینت (`/agents`، `/connections`، `/runs`) فقط «به‌زودی» بودند؛

@@ -3,14 +3,35 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connector.hub import hub
 from app.core.errors import AppError
-from app.db.models import Device, Tool
+from app.db.models import Device, Tool, ToolInvocation
 from app.providers.jsonpath import fill
+
+
+async def enforce_rate_limit(db: AsyncSession, tool: Tool) -> None:
+    """Per tool hourly ceiling; link tools carry the customer's choice in ``config``."""
+    limit = int((tool.config or {}).get("rate_limit_per_hour") or 0)
+    if limit <= 0:
+        return
+    since = datetime.now(UTC) - timedelta(hours=1)
+    used = await db.scalar(
+        select(func.count())
+        .select_from(ToolInvocation)
+        .where(ToolInvocation.tool_id == tool.id, ToolInvocation.created_at >= since)
+    )
+    if int(used or 0) >= limit:
+        raise AppError(
+            code="tool.rate_limited",
+            status_code=429,
+            params={"tool": tool.slug, "limit": limit, "window": "1h"},
+        )
 
 
 def build_steps(
@@ -42,6 +63,8 @@ async def execute_connector_tool(
     config = tool.config or {}
     raw_device = config.get("device_id")
     device_id = uuid.UUID(str(raw_device)) if raw_device else None
+
+    await enforce_rate_limit(db, tool)
 
     session = hub.pick(org_id, device_id)
     if session is None:

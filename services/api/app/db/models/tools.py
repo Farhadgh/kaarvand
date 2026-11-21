@@ -79,6 +79,10 @@ class McpServer(UUIDPrimaryKey, TimestampMixin, Base):
     tools_cache: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, nullable=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # NULL = tenant wide (admin managed); a customer only sees their own servers
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
 
 
 class Device(UUIDPrimaryKey, TimestampMixin, Base):
@@ -102,6 +106,10 @@ class Device(UUIDPrimaryKey, TimestampMixin, Base):
     allowed_paths: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # who paired it: a customer's browser bridge must never serve someone else
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
 
 class DeviceTool(UUIDPrimaryKey, TimestampMixin, Base):

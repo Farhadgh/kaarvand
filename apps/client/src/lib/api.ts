@@ -212,6 +212,77 @@ export type Channel = {
   last_event_status: string | null;
 };
 
+/** One capability of a linked account, e.g. «انتشار پست در فیسبوک». */
+export type LinkToolSpec = {
+  name: string;
+  title_fa: string;
+  description_fa: string;
+  input_schema: Record<string, unknown>;
+};
+
+/** A provider card in «حساب‌ها» (facebook, telegram_web, ...). */
+export type LinkProvider = {
+  slug: string;
+  title_fa: string;
+  auth_kind: "browser" | "session" | "oauth";
+  site_url: string;
+  login_hint_fa: string;
+  notes_fa: string;
+  rate_limit_per_hour: number;
+  available: boolean;
+  tools: LinkToolSpec[];
+};
+
+/** A connected (or half-connected) account of the signed in customer. */
+export type LinkedAccount = {
+  id: string;
+  provider: string;
+  provider_title_fa: string;
+  auth_kind: string;
+  transport: string;
+  status: "pending" | "active" | "paused" | "error" | "revoked";
+  display_name: string | null;
+  phone_hint: string | null;
+  external_account_id: string | null;
+  device_id: string | null;
+  rate_limit_per_hour: number;
+  last_error: string | null;
+  last_seen_at: string | null;
+  created_at: string | null;
+  device_online: boolean;
+  tool_slugs: string[];
+  login_opened: boolean;
+};
+
+export type LinkProbe = {
+  ok: boolean;
+  logged_in: boolean;
+  status: string;
+  display_name: string | null;
+  external_account_id: string | null;
+  hint_fa: string | null;
+  tools: string[];
+  screenshot: string | null;
+  detail: string | null;
+};
+
+/** A paired laptop/phone running the connector (the browser bridge lives here). */
+export type PairedDevice = {
+  id: string;
+  name: string;
+  os: string | null;
+  version: string | null;
+  status: string;
+  pairing_code?: string;
+  last_seen_at: string | null;
+};
+
+export type DevicePairing = {
+  device_id: string;
+  device_token: string;
+  ws_url: string;
+};
+
 export const api = {
   requestOtp: (phone: string) =>
     apiFetch<OtpRequest>("/v1/auth/otp/request", {
@@ -279,5 +350,50 @@ export const api = {
   }) => apiFetch<Channel>("/v1/channels", { method: "POST", body: JSON.stringify(body) }),
 
   deleteChannel: (id: string) => apiFetch<void>(`/v1/channels/${id}`, { method: "DELETE" }),
+
+  // --- «حساب‌های من»: the customer's own accounts -------------------------
+  linkProviders: () => apiFetch<LinkProvider[]>("/v1/links/providers"),
+
+  links: () => apiFetch<LinkedAccount[]>("/v1/links"),
+
+  createLink: (provider: string) =>
+    apiFetch<LinkedAccount>("/v1/links", {
+      method: "POST",
+      body: JSON.stringify({ provider }),
+    }),
+
+  openLink: (id: string) =>
+    apiFetch<{ ok: boolean; window: string }>(`/v1/links/${id}/open`, { method: "POST" }),
+
+  probeLink: (id: string) =>
+    apiFetch<LinkProbe>(`/v1/links/${id}/probe`, { method: "POST" }),
+
+  syncLink: (id: string) =>
+    apiFetch<{ tools: string[]; count: number }>(`/v1/links/${id}/sync`, { method: "POST" }),
+
+  stopLink: (id: string) => apiFetch<LinkedAccount>(`/v1/links/${id}/stop`, { method: "POST" }),
+
+  deleteLink: (id: string) => apiFetch<void>(`/v1/links/${id}`, { method: "DELETE" }),
+
+  // --- this device: pairing + connector token -----------------------------
+  devices: () => apiFetch<PairedDevice[]>("/v1/devices"),
+
+  createDevice: (name: string) =>
+    apiFetch<PairedDevice>("/v1/devices", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+
+  /** The connector itself calls this: pairing code -> long lived device token. */
+  pairDevice: (code: string, os: string) =>
+    apiFetch<DevicePairing>("/v1/devices/pair", {
+      method: "POST",
+      body: JSON.stringify({
+        code,
+        pubkey: `${os}-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`,
+        os,
+        version: "0.1.0",
+      }),
+    }),
 };
 

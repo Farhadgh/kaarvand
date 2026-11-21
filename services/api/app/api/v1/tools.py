@@ -10,7 +10,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.service import get_agent
-from app.core.deps import get_current_user, get_db, require_member
+from app.core.deps import ADMIN_ROLE, get_current_user, get_db, owns_or_admin, require_member
 from app.core.errors import AppError, ForbiddenError, NotFoundError
 from app.db.models import AgentTool, McpServer, Tool, User
 from app.schemas.tools import (
@@ -57,14 +57,29 @@ async def get_tool(db: AsyncSession, user: User, tool_id: uuid.UUID) -> Tool:
             )
         )
     ).scalar_one_or_none()
-    if tool is None:
+    # someone else's tool is indistinguishable from a missing one: 404, never 403
+    if tool is None or not tool_visible(user, tool):
         raise NotFoundError(code="tool.not_found")
     return tool
 
 
-def _ensure_editable(tool: Tool) -> None:
+def tool_visible(user: User, tool: Tool) -> bool:
+    """Global (seeded) and tenant wide tools are shared; a customer's own are private.
+
+    Phase 5 made this a security boundary, not cosmetics: a link tool drives one
+    customer's browser session, so binding it to another customer's agent would
+    post as the wrong person.
+    """
+    if tool.org_id is None or tool.created_by is None:
+        return True
+    return owns_or_admin(user, tool.created_by)
+
+
+def _ensure_editable(user: User, tool: Tool) -> None:
     if tool.org_id is None:
         raise ForbiddenError(code="tool.global_readonly")
+    if not owns_or_admin(user, tool.created_by):
+        raise NotFoundError(code="tool.not_found")
 
 
 def validate_tool_payload(
@@ -126,6 +141,9 @@ async def list_tools(
     user: User = Depends(get_current_user),
 ) -> list[ToolOut]:
     stmt = select(Tool).where(or_(Tool.org_id == user.org_id, Tool.org_id.is_(None)))
+    if user.role != ADMIN_ROLE:
+        # a customer sees the shared catalog plus whatever they built themselves
+        stmt = stmt.where(or_(Tool.created_by.is_(None), Tool.created_by == user.id))
     if kind:
         stmt = stmt.where(Tool.kind == kind)
     if category:
@@ -264,7 +282,7 @@ async def update_tool(
     user: User = Depends(editor),
 ) -> ToolOut:
     tool = await get_tool(db, user, tool_id)
-    _ensure_editable(tool)
+    _ensure_editable(user, tool)
 
     data: dict[str, Any] = payload.model_dump(exclude_unset=True)
     secret = data.pop("secret", None)
@@ -337,7 +355,7 @@ async def delete_tool(
     user: User = Depends(editor),
 ) -> Response:
     tool = await get_tool(db, user, tool_id)
-    _ensure_editable(tool)
+    _ensure_editable(user, tool)
     await db.delete(tool)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -354,7 +372,11 @@ async def _get_mcp_server(db: AsyncSession, user: User, server_id: uuid.UUID) ->
             select(McpServer).where(McpServer.id == server_id, McpServer.org_id == user.org_id)
         )
     ).scalar_one_or_none()
-    if server is None:
+    # NULL owner = managed by the platform; otherwise it belongs to one customer
+    owned = server is not None and (
+        server.owner_user_id is None or owns_or_admin(user, server.owner_user_id)
+    )
+    if not owned:
         raise NotFoundError(code="mcp.server_not_found")
     return server
 
@@ -364,15 +386,12 @@ async def list_mcp_servers(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[McpServerOut]:
-    rows = (
-        (
-            await db.execute(
-                select(McpServer).where(McpServer.org_id == user.org_id).order_by(McpServer.name)
-            )
+    stmt = select(McpServer).where(McpServer.org_id == user.org_id)
+    if user.role != ADMIN_ROLE:
+        stmt = stmt.where(
+            or_(McpServer.owner_user_id.is_(None), McpServer.owner_user_id == user.id)
         )
-        .scalars()
-        .all()
-    )
+    rows = (await db.execute(stmt.order_by(McpServer.name))).scalars().all()
     return [_mcp_out(row) for row in rows]
 
 
@@ -394,6 +413,7 @@ async def create_mcp_server(
         url=payload.url,
         command=payload.command,
         is_enabled=payload.is_enabled,
+        owner_user_id=user.id,
     )
     db.add(server)
     await db.flush()

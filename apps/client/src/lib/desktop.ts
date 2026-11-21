@@ -4,11 +4,46 @@
  * standard web behaviour.
  */
 
+export type BridgeResult<T = Record<string, unknown>> = { ok: boolean; error?: string } & T;
+
+export type BridgeSite = { provider: string; paused: boolean; url: string | null };
+
+export type DeviceBridge = {
+  open: (provider: string, siteUrl: string) => Promise<BridgeResult>;
+  probe: (
+    provider: string,
+    options: { siteUrl?: string; loginCheck?: Record<string, unknown>; screenshot?: boolean },
+  ) => Promise<
+    BridgeResult<{
+      logged_in?: boolean;
+      display_name?: string | null;
+      url?: string;
+      detail?: string | null;
+      screenshot?: string | null;
+    }>
+  >;
+  run: (
+    provider: string,
+    steps: Record<string, unknown>[],
+    options?: { siteUrl?: string; visible?: boolean; timeoutMs?: number },
+  ) => Promise<BridgeResult<{ output?: unknown[]; artifacts?: string[] }>>;
+  wipe: (provider: string) => Promise<BridgeResult>;
+  stop: (provider: string) => Promise<BridgeResult>;
+  status: () => Promise<BridgeResult<{ sites?: BridgeSite[] }>>;
+};
+
+export type StoredDevice = { deviceId: string; token: string; wsUrl: string };
+
 export type DesktopBridge = {
   platform: string;
   electron?: string;
   openExternal: (url: string) => Promise<boolean>;
   onDeepLink: (callback: (url: string) => void) => () => void;
+  bridge?: DeviceBridge;
+  device?: {
+    get: () => Promise<StoredDevice | null>;
+    set: (value: StoredDevice | null) => Promise<boolean>;
+  };
 };
 
 declare global {

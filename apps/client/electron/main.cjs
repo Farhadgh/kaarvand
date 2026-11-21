@@ -1,7 +1,11 @@
 // Electron main process: one window, kaarvand:// deep links, external links
-// opened in the system browser (the Zarinpal return flow relies on this).
+// opened in the system browser (the Zarinpal return flow relies on this), and
+// the browser bridge that holds the customer's logged in site profiles.
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const fs = require("node:fs");
 const path = require("node:path");
+
+const bridge = require("./bridge.cjs");
 
 const PROTOCOL = "kaarvand";
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
@@ -59,6 +63,70 @@ ipcMain.handle("kaarvand:open-external", async (_event, url) => {
     return true;
   }
   return false;
+});
+
+// --- browser bridge -------------------------------------------------------
+// The renderer keeps the websocket (it owns the session and the API base); the
+// main process owns the Chromium profiles. Every call is wrapped so a failing
+// page can never crash the app.
+function deviceFile() {
+  return path.join(app.getPath("userData"), "device.json");
+}
+
+function wrap(handler) {
+  return async (_event, ...args) => {
+    try {
+      return { ok: true, ...(await handler(...args)) };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+        step: error && typeof error === "object" ? error.step : undefined,
+        op: error && typeof error === "object" ? error.op : undefined,
+        output: error && typeof error === "object" ? error.output : undefined,
+        artifacts: error && typeof error === "object" ? error.artifacts : undefined,
+      };
+    }
+  };
+}
+
+ipcMain.handle(
+  "bridge:open",
+  wrap(async (provider, siteUrl) => bridge.openSite(String(provider), String(siteUrl))),
+);
+
+ipcMain.handle(
+  "bridge:probe",
+  wrap(async (provider, options) => bridge.probe(String(provider), options || {})),
+);
+
+ipcMain.handle(
+  "bridge:run",
+  wrap(async (provider, steps, options) =>
+    bridge.runSteps(String(provider), steps, options || {}),
+  ),
+);
+
+ipcMain.handle("bridge:wipe", wrap(async (provider) => bridge.wipe(String(provider))));
+ipcMain.handle("bridge:stop", wrap(async (provider) => bridge.stop(String(provider))));
+ipcMain.handle("bridge:status", wrap(async () => ({ sites: bridge.status() })));
+
+ipcMain.handle("device:get", async () => {
+  try {
+    return JSON.parse(fs.readFileSync(deviceFile(), "utf8"));
+  } catch {
+    return null;
+  }
+});
+
+ipcMain.handle("device:set", async (_event, value) => {
+  try {
+    if (value) fs.writeFileSync(deviceFile(), JSON.stringify(value), { mode: 0o600 });
+    else fs.rmSync(deviceFile(), { force: true });
+    return true;
+  } catch {
+    return false;
+  }
 });
 
 if (!app.requestSingleInstanceLock()) {

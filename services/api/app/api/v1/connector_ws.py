@@ -92,7 +92,7 @@ async def connector_socket(websocket: WebSocket, token: str = Query(default=""))
                         "server_time": datetime.now(UTC).isoformat(),
                     }
                 )
-            elif kind in ("script.result", "apps.result"):
+            elif kind in ("script.result", "apps.result", "link.result"):
                 hub.resolve(str(message.get("call_id") or ""), message)
             elif kind == "script.progress":
                 log.info(

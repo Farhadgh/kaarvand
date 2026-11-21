@@ -96,8 +96,13 @@
 | `fs.list` | path | فهرست پوشه |
 | `http.request` | url | درخواست HTTP از ماشین کاربر |
 | `browser.open` | url | باز کردن مرورگر |
-| `browser.click` | selector | کلیک روی عنصر |
-| `browser.extract` | selector | استخراج متن |
+| `browser.goto` | url | رفتن به آدرس در پنجرهٔ همان سایت (پروفایل پایدار) |
+| `browser.wait_for` | selector | انتظار برای عنصر؛ اختیاری `contains`، `gone`، `timeout` |
+| `browser.click` | selector | کلیک روی عنصر؛ اختیاری `contains` برای تطبیق متن |
+| `browser.type` | selector, text | تایپ در کادر/محتوای قابل‌ویرایش صفحه |
+| `browser.press` | key | فشردن کلید در صفحه (مثل `Enter`) |
+| `browser.extract` | selector | استخراج متن؛ اختیاری `max_chars` |
+| `browser.wait` | ms | توقف کوتاه در صفحه |
 | `wait` | — | توقف کوتاه |
 | `keyboard.type` | text | تایپ متن |
 | `screenshot` | — | تصویر از صفحه |

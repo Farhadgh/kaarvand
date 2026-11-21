@@ -14,6 +14,7 @@ from app.db.models.core import ApiKey, Membership, Organization, User
 from app.db.models.i18n import Translation
 from app.db.models.inbound import InboundChannel, InboundEvent
 from app.db.models.knowledge import Chunk, Document, KnowledgeBase
+from app.db.models.links import AccountLink, LinkAsset, LinkLogin, LinkMessage
 from app.db.models.llm_models import CapabilityRule, Model, PriceHistory
 from app.db.models.prompts import Prompt, PromptExample, PromptVersion
 from app.db.models.providers import Provider, ProviderAdapter
@@ -22,6 +23,7 @@ from app.db.models.tools import Device, DeviceTool, McpServer, Tool
 from app.db.models.usage import ToolInvocation, UsageLedger
 
 __all__ = [
+    "AccountLink",
     "Agent",
     "AgentTask",
     "AgentTool",
@@ -40,6 +42,9 @@ __all__ = [
     "InboundChannel",
     "InboundEvent",
     "KnowledgeBase",
+    "LinkAsset",
+    "LinkLogin",
+    "LinkMessage",
     "LoginAttempt",
     "McpServer",
     "Membership",

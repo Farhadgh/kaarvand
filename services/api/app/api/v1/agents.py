@@ -331,16 +331,15 @@ async def set_agent_tools(
     wanted = set(unique)
 
     if wanted:
-        available = set(
-            (
-                await db.execute(
-                    select(Tool.id).where(
-                        Tool.id.in_(wanted),
-                        or_(Tool.org_id == user.org_id, Tool.org_id.is_(None)),
-                    )
-                )
-            ).scalars()
+        stmt = select(Tool.id).where(
+            Tool.id.in_(wanted),
+            or_(Tool.org_id == user.org_id, Tool.org_id.is_(None)),
         )
+        if user.role != ADMIN_ROLE:
+            # a customer may only bind global tools and their own (a link tool is
+            # bound to one account's browser profile - never to someone else's)
+            stmt = stmt.where(or_(Tool.created_by.is_(None), Tool.created_by == user.id))
+        available = set((await db.execute(stmt)).scalars())
         missing = wanted - available
         if missing:
             raise AppError(

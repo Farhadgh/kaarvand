@@ -3,7 +3,9 @@ import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 
 import { loadSession } from "./lib/auth";
 import { desktop, parseDeepLink } from "./lib/desktop";
+import DeviceBridge from "./components/DeviceBridge";
 import Agents from "./pages/Agents";
+import Accounts from "./pages/Accounts";
 import Connections from "./pages/Connections";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
@@ -12,7 +14,13 @@ import Runs from "./pages/Runs";
 import Wallet from "./pages/Wallet";
 
 function RequireAuth({ children }: { children: ReactNode }) {
-  return loadSession() ? <>{children}</> : <Navigate to="/login" replace />;
+  if (!loadSession()) return <Navigate to="/login" replace />;
+  return (
+    <>
+      <DeviceBridge />
+      {children}
+    </>
+  );
 }
 
 /** `kaarvand://wallet?status=paid` (the gateway return) -> in-app route. */
@@ -64,6 +72,7 @@ export default function App() {
         />
         {[
           { path: "/agents", page: <Agents /> },
+          { path: "/accounts", page: <Accounts /> },
           { path: "/connections", page: <Connections /> },
           { path: "/runs", page: <Runs /> },
         ].map((item) => (
