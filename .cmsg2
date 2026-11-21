@@ -1,0 +1,7 @@
+docs: record the account-link bridge and refresh the project numbers
+
+- docs/changelog.md: production evidence for phase 5(A) (0018, endpoints, cleanup)
+- docs/README.md + README.md: 48 tables / 19 migrations / 25 RLS tables,
+  134 operations on 103 routes, 320 tests, 8 client pages, 29 action ops;
+  bridge.md added to both indexes; Zarinpal status corrected
+- .gitignore: ignore the *.exit marker files the local test/build loop leaves behind

@@ -32,7 +32,7 @@
 **شاهد:**
 
 ```
-pytest tests/test_links_api.py                       → ۸ passed
+pytest tests/test_links_api.py                       → ۹ passed
   POST /v1/links بدون دستگاه                          → ۲۰۱ pending، login_opened=false
   POST /v1/links دوباره                                → ۴۰۹ link.already_exists
   probe با پل قلابی (logged_in=true)                   → active + ۲ ابزار connector
@@ -40,10 +40,36 @@ pytest tests/test_links_api.py                       → ۸ passed
              GET /v1/tools/{id} → ۴۰۴  ·  PUT /v1/agents/{id}/tools → ۴۲۲ tool.not_found
   دستگاه ادمین برای مشتری                              → ۴۰۹ link.device_offline (و در لیست نیست)
   DELETE لینک                                          → ۲۰۴ + فرمان wipe + ابزارها پاک
-pytest -q (کل مجموعه)                                 → ۳۱۹ passed
+pytest -q (کل مجموعه)                                 → ۳۲۰ passed
 python -m ruff check app tests                        → All checks passed
 npx tsc --noEmit (کلاینت)                             → بدون خطا (exit 0)
 ```
+
+**شاهد زنده روی تولید (`kaarvand.amigok.cloud`):**
+
+```
+کامیت سرور                       → c732592
+alembic current                  → 0018 (head)
+systemctl                        → kaarvand-api / -web / -scheduler = active
+/healthz                         → 200
+GET /v1/links (بی‌توکن)            → 401
+
+GET /v1/links/providers          → 200  facebook(۲ ابزار) · telegram_web(۲) · whatsapp_web(۱) · instagram(۰، به‌زودی)
+POST /v1/links {facebook}        → 201  ردیف pending
+POST /v1/links/{id}/probe        → 409  link.device_offline   (هیچ دستگاهی آنلاین نبود — همان خطای صادقانهٔ مورد انتظار)
+GET  /v1/links/{id} با توکن ادمین → 200  (ادمین همه را می‌بیند)
+POST /v1/links {nope}            → 422  link.unknown_provider
+POST /v1/links {instagram}       → 422  link.provider_soon
+GET  /v1/links (مشتری تازه)       → 200  []
+```
+
+جدول‌ها در تولید ساخته شدند: `account_links, link_assets, link_logins, link_messages`.
+دادهٔ آزمایشی (یک لینک pending و کاربر موقت) بعد از بررسی پاک شد تا محیط تمیز بماند.
+
+**یادداشت عملیاتی:** برای اینکه پوشهٔ `alembic/` هم لینت شود، `alembic` در
+`[tool.ruff.lint.isort] known-third-party` اعلام شد؛ وگرنه ruff فایل `alembic/env.py`
+را «import نامرتب» می‌دید، چون هم‌نام پوشهٔ محلی مهاجرت‌هاست.
+
 
 **تصمیم‌های مهم:**
 
@@ -786,3 +812,4 @@ refresh).
 | تست | ۱۶۸ |
 | پرامپت پیش‌فرض | ۱۳ |
 | دموی آماده | ۵ |
+
